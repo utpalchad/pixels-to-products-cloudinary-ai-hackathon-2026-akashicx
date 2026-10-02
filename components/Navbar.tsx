@@ -15,8 +15,8 @@ export default function Navbar(){
     </nav>
 
     <a className="navCta" href="#studio">
-      START FORGING
-      <span>↗</span>
+      <span className="navCtaLabel">START FORGING</span>
+      <span className="navCtaIcon">↗</span>
     </a>
   </header>
 }
