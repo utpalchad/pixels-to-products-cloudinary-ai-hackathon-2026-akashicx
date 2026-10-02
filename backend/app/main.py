@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes_ai3d import router as ai3d_router
 from app.api.routes_analysis import router as analysis_router
 from app.api.routes_convert import router as convert_router
+from app.api.routes_download import router as download_router
 from app.api.routes_health import router as health_router
 from app.api.routes_jobs import router as jobs_router
 from app.config import get_settings
@@ -31,6 +32,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(analysis_router, prefix="/api/v1")
 app.include_router(convert_router, prefix="/api/v1")
+app.include_router(download_router, prefix="/api/v1")
 app.include_router(ai3d_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 
