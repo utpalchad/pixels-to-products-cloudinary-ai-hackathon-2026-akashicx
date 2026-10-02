@@ -12,62 +12,76 @@ export default function Hero(){
   useEffect(()=>{
     const ctx=gsap.context(()=>{
       gsap.from(".heroWord",{
-        y:120,
+        y:92,
         opacity:0,
-        rotateX:-24,
-        stagger:.08,
-        duration:1.05,
+        rotateX:-16,
+        stagger:.07,
+        duration:.9,
         ease:"power4.out"
       });
       gsap.from(".heroKicker,.heroIntro,.heroSpecs,.primary",{
-        y:22,
+        y:18,
         opacity:0,
-        stagger:.08,
-        duration:.7,
-        delay:.35,
+        stagger:.07,
+        duration:.58,
+        delay:.28,
         ease:"power3.out"
       });
       gsap.from(".heroScene",{
-        scale:.82,
+        scale:.9,
         opacity:0,
-        duration:1.3,
-        delay:.2,
+        duration:.95,
+        delay:.16,
         ease:"power3.out"
       });
       gsap.from(".eyebrow,.dragHint,.scrollHint,.heroIndex",{
         opacity:0,
-        y:10,
-        stagger:.06,
-        duration:.5,
-        delay:.75
-      });
-      gsap.to(".heroScene",{
-        y:-9,
-        duration:3.8,
-        ease:"sine.inOut",
-        repeat:-1,
-        yoyo:true
+        y:8,
+        stagger:.05,
+        duration:.42,
+        delay:.62
       });
     },root);
+
+    const finePointer=window.matchMedia(
+      "(pointer:fine) and (prefers-reduced-motion:no-preference)"
+    ).matches;
+
+    if(!finePointer){
+      return()=>ctx.revert();
+    }
 
     const scene=root.current?.querySelector(".heroScene");
     const title=root.current?.querySelector(".heroEditorial");
 
-    const sceneX=scene?gsap.quickTo(scene,"x",{duration:.8,ease:"power3.out"}):null;
-    const sceneY=scene?gsap.quickTo(scene,"y",{duration:.8,ease:"power3.out"}):null;
-    const titleX=title?gsap.quickTo(title,"x",{duration:.9,ease:"power3.out"}):null;
+    const sceneX=scene?gsap.quickTo(scene,"x",{duration:.55,ease:"power3.out"}):null;
+    const sceneY=scene?gsap.quickTo(scene,"y",{duration:.55,ease:"power3.out"}):null;
+    const titleX=title?gsap.quickTo(title,"x",{duration:.7,ease:"power3.out"}):null;
+
+    let frame=0;
+    let latestX=0;
+    let latestY=0;
+
+    const flush=()=>{
+      frame=0;
+      const nx=latestX/window.innerWidth-.5;
+      const ny=latestY/window.innerHeight-.5;
+      sceneX?.(nx*10);
+      sceneY?.(ny*7);
+      titleX?.(nx*-3);
+    };
 
     const move=(e:PointerEvent)=>{
-      const nx=e.clientX/window.innerWidth-.5;
-      const ny=e.clientY/window.innerHeight-.5;
-      sceneX?.(nx*15);
-      sceneY?.(ny*10);
-      titleX?.(nx*-5);
+      latestX=e.clientX;
+      latestY=e.clientY;
+      if(!frame) frame=requestAnimationFrame(flush);
     };
 
     window.addEventListener("pointermove",move,{passive:true});
+
     return()=>{
       window.removeEventListener("pointermove",move);
+      if(frame) cancelAnimationFrame(frame);
       ctx.revert();
     };
   },[]);
@@ -89,13 +103,13 @@ export default function Hero(){
 
       <h1>
         <span className="heroLine">
-          <span className="heroWord">PIXELS</span>
+          <span className="heroWord pixelWord">PIXELS</span>
         </span>
         <span className="heroLine heroLineRight">
-          <span className="heroWord chroma">BECOME</span>
+          <span className="heroWord becomeWord">BECOME</span>
         </span>
         <span className="heroLine">
-          <span className="heroWord">OBJECTS.</span>
+          <span className="heroWord objectWord">OBJECTS.</span>
         </span>
       </h1>
     </div>
