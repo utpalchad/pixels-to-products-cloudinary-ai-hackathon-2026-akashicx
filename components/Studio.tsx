@@ -1,6 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import {
+  buildCloudinaryPrepUrl,
+  buildCloudinaryPreviewUrl,
+  canCloudinaryUpscale
+} from "../lib/cloudinary";
 import {useMemo,useState} from "react";
 import {
   CheckCircle2,
@@ -32,6 +37,12 @@ export default function Studio(){
   const [sourceFile,setSourceFile]=useState<File|null>(null);
   const [cloudinaryUrl,setCloudinaryUrl]=useState("");
   const [cloudinaryPublicId,setCloudinaryPublicId]=useState("");
+  const [cloudinaryWidth,setCloudinaryWidth]=useState(0);
+  const [cloudinaryHeight,setCloudinaryHeight]=useState(0);
+  const [removeBackground,setRemoveBackground]=useState(true);
+  const [restoreImage,setRestoreImage]=useState(false);
+  const [upscaleImage,setUpscaleImage]=useState(false);
+  const [improveImage,setImproveImage]=useState(true);
   const [description,setDescription]=useState("");
   const [modelMode,setModelMode]=useState<ModelMode>("relief");
   const [outputFormat,setOutputFormat]=useState<OutputFormat>("stl");
@@ -49,18 +60,66 @@ export default function Studio(){
     [depth]
   );
 
+  const cloudinaryPrepOptions=useMemo(()=>({
+    removeBackground,
+    restore:restoreImage,
+    upscale:upscaleImage,
+    improve:improveImage,
+    width:cloudinaryWidth,
+    height:cloudinaryHeight
+  }),[
+    removeBackground,
+    restoreImage,
+    upscaleImage,
+    improveImage,
+    cloudinaryWidth,
+    cloudinaryHeight
+  ]);
+
+  const cloudinaryPrepUrl=useMemo(
+    ()=>buildCloudinaryPrepUrl(cloudinaryUrl,cloudinaryPrepOptions),
+    [cloudinaryUrl,cloudinaryPrepOptions]
+  );
+
+  const cloudinaryPreviewUrl=useMemo(
+    ()=>buildCloudinaryPreviewUrl(cloudinaryUrl,cloudinaryPrepOptions),
+    [cloudinaryUrl,cloudinaryPrepOptions]
+  );
+
+  const canUpscale=canCloudinaryUpscale(cloudinaryWidth,cloudinaryHeight);
+
   function clearResult(nextMessage?:string){
     setDownloadUrl(null);
     setViewerUrl(null);
     if(nextMessage) setMessage(nextMessage);
   }
 
+  async function fetchCloudinaryReady(url:string){
+    let lastStatus=0;
+
+    for(let attempt=0;attempt<8;attempt++){
+      const response=await fetch(url);
+      lastStatus=response.status;
+
+      if(response.ok) return response;
+
+      if(response.status===420||response.status===423){
+        setMessage("CLOUDINARY AI PREPROCESSING");
+        await wait(Math.min(1500+attempt*500,4000));
+        continue;
+      }
+
+      throw new Error(`Cloudinary preprocessing failed (${response.status}).`);
+    }
+
+    throw new Error(`Cloudinary preprocessing is still pending (${lastStatus}).`);
+  }
+
   async function getWorkingFile(){
     if(sourceFile) return sourceFile;
-    if(!cloudinaryUrl) return null;
+    if(!cloudinaryPrepUrl) return null;
 
-    const response=await fetch(cloudinaryUrl);
-    if(!response.ok) throw new Error("Could not read Cloudinary asset.");
+    const response=await fetchCloudinaryReady(cloudinaryPrepUrl);
     const blob=await response.blob();
 
     return new File(
@@ -124,6 +183,8 @@ export default function Studio(){
         if(result?.event==="success"){
           setCloudinaryUrl(result.info.secure_url||"");
           setCloudinaryPublicId(result.info.public_id||"cloudinary-source");
+          setCloudinaryWidth(Number(result.info.width||0));
+          setCloudinaryHeight(Number(result.info.height||0));
           setSourceFile(null);
           clearResult("CLOUDINARY READY");
           setPipeline("done");
@@ -217,8 +278,8 @@ export default function Studio(){
 
     const body=new FormData();
 
-    if(cloudinaryUrl){
-      body.append("cloudinary_urls",cloudinaryUrl);
+    if(cloudinaryPrepUrl){
+      body.append("cloudinary_urls",cloudinaryPrepUrl);
     }else{
       const file=await getWorkingFile();
       if(!file) throw new Error("Add an image first.");
@@ -336,14 +397,76 @@ export default function Studio(){
             :"UPLOAD WITH CLOUDINARY"}
         </button>
 
-        {cloudinaryUrl&&<a
-          className="cloudinaryAsset"
-          href={cloudinaryUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          CLOUDINARY ASSET READY ↗
-        </a>}
+        {cloudinaryUrl&&<>
+          <a
+            className="cloudinaryAsset"
+            href={cloudinaryUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            ORIGINAL CLOUDINARY ASSET ↗
+          </a>
+
+          <label className="fieldLabel">CLOUDINARY AI PREP</label>
+          <div className="cloudinaryTools">
+            <button
+              className={removeBackground?"active":""}
+              onClick={()=>{
+                setRemoveBackground(!removeBackground);
+                clearResult("CLOUDINARY PREP UPDATED");
+              }}
+            >
+              BG REMOVE
+            </button>
+            <button
+              className={improveImage?"active":""}
+              onClick={()=>{
+                setImproveImage(!improveImage);
+                clearResult("CLOUDINARY PREP UPDATED");
+              }}
+            >
+              IMPROVE
+            </button>
+            <button
+              className={restoreImage?"active":""}
+              onClick={()=>{
+                setRestoreImage(!restoreImage);
+                clearResult("CLOUDINARY PREP UPDATED");
+              }}
+            >
+              RESTORE
+            </button>
+            <button
+              className={upscaleImage?"active":""}
+              disabled={!canUpscale}
+              onClick={()=>{
+                setUpscaleImage(!upscaleImage);
+                clearResult("CLOUDINARY PREP UPDATED");
+              }}
+            >
+              UPSCALE 4×
+            </button>
+          </div>
+
+          <div className="cloudinaryPrepMeta">
+            AI INPUT: {removeBackground?"BG REMOVED · ":""}
+            {improveImage?"IMPROVED · ":""}
+            {restoreImage?"RESTORED · ":""}
+            {upscaleImage&&canUpscale?"4× UPSCALED":"ORIGINAL RES"}
+            {!canUpscale&&cloudinaryWidth>0
+              ?" · UPSCALE UNAVAILABLE ABOVE 4.2MP"
+              :""}
+          </div>
+
+          <a
+            className="cloudinaryProcessed"
+            href={cloudinaryPreviewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            VIEW PREPROCESSED IMAGE ↗
+          </a>
+        </>}
 
         <label className="drop">
           <input
@@ -356,6 +479,8 @@ export default function Studio(){
               if(next){
                 setCloudinaryUrl("");
                 setCloudinaryPublicId("");
+                setCloudinaryWidth(0);
+                setCloudinaryHeight(0);
               }
 
               clearResult(next?"LOCAL IMAGE LOADED":"READY");
