@@ -17,6 +17,57 @@ def _parse_cloudinary_urls(raw: str) -> list[str]:
     return [part.strip() for part in normalized.split(",") if part.strip()]
 
 
+def _unique_values(values: list[str], limit: int) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        clean = " ".join(value.split()).strip()
+        key = clean.lower()
+        if clean and key not in seen:
+            seen.add(key)
+            result.append(clean)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def _compile_multiview_prompt(analyses: list[ImageAnalysis]) -> str:
+    primary = analyses[0]
+    shapes = _unique_values([item.overall_shape for item in analyses], 4)
+    orientations = _unique_values([item.orientation for item in analyses], 6)
+    features = _unique_values(
+        [feature for item in analyses for feature in item.important_features],
+        12,
+    )
+    materials = _unique_values(
+        [material for item in analyses for material in item.materials],
+        8,
+    )
+    negatives = _unique_values(
+        [item.negative_prompt for item in analyses if item.negative_prompt],
+        3,
+    )
+
+    prompt = (
+        f"Create EXACTLY ONE 3D asset representing ONE instance of {primary.object}. "
+        f"The {len(analyses)} reference images are different camera views of the SAME physical object, "
+        "not separate objects. Fuse all views into one coherent 360-degree model. "
+        "Never create one model per photo and never duplicate the subject. "
+        "Use each view only to recover geometry, proportions, materials, and colors that are hidden in other views. "
+        f"Observed shapes across views: {'; '.join(shapes)}. "
+        f"Camera/view orientations: {'; '.join(orientations)}. "
+        f"Important features across views: {', '.join(features)}. "
+        f"Materials and colors across views: {', '.join(materials)}. "
+        "Resolve conflicts by prioritizing geometry clearly visible in the reference views. "
+        "Infer only surfaces that remain unseen across every view. "
+        "Keep the result isolated and centered with no props, scene, pedestal, reflections, or background objects. "
+        "STRICT SINGLE-OBJECT CONSTRAINT: no duplicate, no second copy, no repeated instance, no collection, "
+        "no mirrored duplicate, no floating parts, no extra accessories, and no separate model for each photo. "
+        f"Avoid: {'; '.join(negatives)}"
+    )
+    return " ".join(prompt.split())[:1000]
+
+
 def _compile_single_object_prompt(analysis: ImageAnalysis) -> str:
     """Build a deterministic one-object prompt instead of trusting free-form wording."""
     features = ", ".join(analysis.important_features[:8]) or "preserve all visible distinctive features"
@@ -99,13 +150,32 @@ async def generate_ai_3d(
     if analyze_image:
         vision = VisionRouter(settings)
         try:
-            _, analysis = await vision.analyze(
-                validated[0][0],
-                validated[0][1],
-                provider=vision_provider,
-                user_description=description,
+            analyses: list[ImageAnalysis] = []
+            total_views = len(validated)
+
+            for index, (data, mime, _) in enumerate(validated):
+                view_context = (
+                    f"Reference view {index + 1} of {total_views}. "
+                    "All supplied images show the SAME single physical object from different angles. "
+                    "Analyze only this object's geometry, materials, colors, and visible details. "
+                    "Do not interpret the separate photographs as separate objects."
+                )
+                if description:
+                    view_context += f" User guidance: {description}"
+
+                _, analysis = await vision.analyze(
+                    data,
+                    mime,
+                    provider=vision_provider,
+                    user_description=view_context,
+                )
+                analyses.append(analysis)
+
+            generation_prompt = (
+                _compile_multiview_prompt(analyses)
+                if len(analyses) > 1
+                else _compile_single_object_prompt(analyses[0])
             )
-            generation_prompt = _compile_single_object_prompt(analysis)
         except Exception as exc:
             if not generation_prompt:
                 raise HTTPException(
