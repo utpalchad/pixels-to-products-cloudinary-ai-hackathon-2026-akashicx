@@ -53,6 +53,7 @@ export default function Studio(){
   const [message,setMessage]=useState("READY");
   const [downloadUrl,setDownloadUrl]=useState<string|null>(null);
   const [viewerUrl,setViewerUrl]=useState<string|null>(null);
+  const [full3DJobId,setFull3DJobId]=useState<string|null>(null);
 
   const resolution=useMemo(
     ()=>Math.max(32,Math.min(256,Math.round(64+(detail/100)*192))),
@@ -112,6 +113,7 @@ export default function Studio(){
   function clearResult(nextMessage?:string){
     setDownloadUrl(null);
     setViewerUrl(null);
+    setFull3DJobId(null);
     if(nextMessage) setMessage(nextMessage);
   }
 
@@ -281,10 +283,11 @@ export default function Studio(){
   async function finishFull3D(job:any){
     if(!job?.id) throw new Error("3D job did not return an id.");
 
+    setFull3DJobId(String(job.id));
     setDownloadUrl(`${API_BASE}/api/v1/jobs/${job.id}/download`);
     setViewerUrl(String(job.viewer_url||job.glb_url||"")||null);
     setPipeline("done");
-    setMessage("FULL 3D → TEXTURED GLB READY");
+    setMessage("FULL 3D → GLB + STL READY");
   }
 
   async function pollFull3D(jobId:string){
@@ -706,7 +709,7 @@ export default function Studio(){
 
         {full3D&&<div className="dimension">
           <span>FULL 3D MODE</span>
-          <strong>STANDARD · DIRECT PHOTO · MULTI-VIEW · GLB</strong>
+          <strong>STANDARD · DIRECT PHOTO · MULTI-VIEW · GLB + STL</strong>
         </div>}
 
         <button
@@ -726,6 +729,13 @@ export default function Studio(){
 
         {downloadUrl&&<a className="resultLink" href={downloadUrl}>
           {full3D?"DOWNLOAD TEXTURED GLB ↓":`DOWNLOAD ${outputFormat.toUpperCase()} ↓`}
+        </a>}
+
+        {full3D&&full3DJobId&&<a
+          className="resultLink"
+          href={`${API_BASE}/api/v1/jobs/${full3DJobId}/download-stl`}
+        >
+          DOWNLOAD FULL 3D STL ↓
         </a>}
 
         {viewerUrl&&<a
