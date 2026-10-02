@@ -6,7 +6,7 @@ import {
   buildCloudinaryPreviewUrl,
   canCloudinaryUpscale
 } from "../lib/cloudinary";
-import {useMemo,useState} from "react";
+import {useMemo,useRef,useState} from "react";
 import {
   CheckCircle2,
   Cloud,
@@ -32,6 +32,7 @@ const CLOUDINARY_UPLOAD_PRESET=process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET|
 const wait=(ms:number)=>new Promise(resolve=>window.setTimeout(resolve,ms));
 
 export default function Studio(){
+  const localInputRef=useRef<HTMLInputElement|null>(null);
   const [depth,setDepth]=useState(48);
   const [detail,setDetail]=useState(72);
   const [smooth,setSmooth]=useState(35);
@@ -202,18 +203,22 @@ export default function Studio(){
       },
       (error:any,result:any)=>{
         if(error){
-          setPipeline("error");
           const detail=String(
             error?.statusText||
             error?.message||
             error?.status||
             ""
           ).toUpperCase();
-          setMessage(
-            detail.includes("PRESET")
-              ?"CLOUDINARY PRESET NOT FOUND · USE LOCAL MULTI-UPLOAD"
-              :"CLOUDINARY UPLOAD ERROR · LOCAL MULTI-UPLOAD AVAILABLE"
-          );
+
+          if(detail.includes("PRESET")){
+            setPipeline("ready");
+            setMessage("CLOUDINARY PRESET MISSING · OPENING LOCAL MULTI-UPLOAD");
+            try{ widget.close(); }catch{}
+            window.setTimeout(()=>localInputRef.current?.click(),250);
+          }else{
+            setPipeline("error");
+            setMessage("CLOUDINARY UPLOAD ERROR · LOCAL MULTI-UPLOAD AVAILABLE");
+          }
           return;
         }
 
@@ -581,6 +586,7 @@ export default function Studio(){
 
         <label className="drop">
           <input
+            ref={localInputRef}
             type="file"
             accept="image/png,image/jpeg,image/webp"
             multiple={accurateMode}
