@@ -84,12 +84,12 @@ async def get_job(job_id: str):
             remote = await service.poll(record.remote_job_id)
             remote_status = remote.status.lower()
 
-            if remote.glb_url or remote_status == "done":
-                glb_url = str(remote.glb_url) if remote.glb_url else record.glb_url
+            if remote.glb_url:
+                glb_url = str(remote.glb_url)
                 viewer_url = (
                     str(remote.viewer_url)
                     if remote.viewer_url
-                    else (service.viewer_url_for(glb_url) if glb_url else None)
+                    else service.viewer_url_for(glb_url)
                 )
                 record = job_store.update(
                     job_id,
