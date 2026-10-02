@@ -1,4 +1,6 @@
+import httpx
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 
 from app.config import get_settings
 from app.models.schemas import JobResponse
@@ -37,8 +39,9 @@ async def get_job(job_id: str):
                     progress=100,
                     glb_url=glb_url,
                     viewer_url=viewer_url,
+                    error=None,
                 ) or record
-            elif remote_status == "failed":
+            elif remote_status in {"failed", "error"}:
                 record = job_store.update(
                     job_id,
                     status="failed",
@@ -51,12 +54,33 @@ async def get_job(job_id: str):
                     job_id,
                     status="processing",
                     progress=progress,
+                    error=None,
                 ) or record
         except Exception as exc:
-            # Keep the job pollable if the provider has a transient error.
             record = job_store.update(
                 job_id,
                 error=f"Temporary provider polling error: {exc}",
             ) or record
 
     return job_store.response(record)
+
+
+@router.get("/{job_id}/download")
+async def download_job_glb(job_id: str):
+    record = job_store.get(job_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if record.status != "done" or not record.glb_url:
+        raise HTTPException(status_code=409, detail="The GLB is not ready yet.")
+
+    async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+        response = await client.get(record.glb_url)
+        response.raise_for_status()
+
+    return Response(
+        content=response.content,
+        media_type="model/gltf-binary",
+        headers={
+            "Content-Disposition": f'attachment; filename="pixel-forge-full-3d-{job_id}.glb"'
+        },
+    )
