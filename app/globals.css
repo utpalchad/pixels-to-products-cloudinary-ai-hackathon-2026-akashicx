@@ -864,7 +864,7 @@ body{
   .navCta{
     padding:8px
   }
-  .navCta>span:first-child{display:none}
+  .navCtaLabel{display:none}
   .navCta{
     font-size:0;
     gap:0
