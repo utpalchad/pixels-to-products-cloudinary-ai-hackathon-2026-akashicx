@@ -49,6 +49,8 @@ async def convert_local(
             detail="max_thickness_mm must be greater than base thickness and at most 20.",
         )
 
+    logger.info("Converting local mesh mode=%s format=%s", mode.value, output_format.value)
+
     try:
         heightmap = image_bytes_to_heightmap(
             image_bytes,
@@ -64,7 +66,7 @@ async def convert_local(
             heightmap,
             width_mm=width_mm,
         )
-        _, file_url = export_mesh(
+        path, file_url = export_mesh(
             mesh,
             output_format=output_format.value,
             settings=settings,
@@ -72,6 +74,9 @@ async def convert_local(
     except Exception as exc:
         logger.exception("Mesh conversion failed")
         raise HTTPException(status_code=500, detail=f"Mesh conversion failed: {exc}") from exc
+
+    base = settings.public_base_url.rstrip("/")
+    download_url = f"{base}/api/v1/download/{path.name}"
 
     return ConvertResponse(
         status="success",
@@ -83,4 +88,5 @@ async def convert_local(
         width_mm=round(actual_width, 3),
         height_mm=round(actual_height, 3),
         file_url=file_url,
+        download_url=download_url,
     )
