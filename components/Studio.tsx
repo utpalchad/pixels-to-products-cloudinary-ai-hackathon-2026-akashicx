@@ -22,6 +22,7 @@ const StudioScene=dynamic(()=>import("./scenes/StudioScene"),{ssr:false});
 type ModelMode="relief"|"lithophane"|"full3d";
 type OutputFormat="stl"|"glb";
 type PipelineState="ready"|"analyzing"|"converting"|"done"|"error";
+type CloudinaryView={url:string;publicId:string;width:number;height:number};
 
 const API_BASE=(process.env.NEXT_PUBLIC_API_URL||"http://localhost:8000").replace(/\/$/,"");
 const CLOUDINARY_CLOUD_NAME=process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME||"";
@@ -34,6 +35,8 @@ export default function Studio(){
   const [detail,setDetail]=useState(72);
   const [smooth,setSmooth]=useState(35);
   const [wire,setWire]=useState(false);
+  const [accurateMode,setAccurateMode]=useState(false);
+  const [cloudinaryViews,setCloudinaryViews]=useState<CloudinaryView[]>([]);
   const [sourceFile,setSourceFile]=useState<File|null>(null);
   const [cloudinaryUrl,setCloudinaryUrl]=useState("");
   const [cloudinaryPublicId,setCloudinaryPublicId]=useState("");
@@ -84,6 +87,24 @@ export default function Studio(){
   const cloudinaryPreviewUrl=useMemo(
     ()=>buildCloudinaryPreviewUrl(cloudinaryUrl,cloudinaryPrepOptions),
     [cloudinaryUrl,cloudinaryPrepOptions]
+  );
+
+  const cloudinaryPrepUrls=useMemo(
+    ()=>cloudinaryViews.map(view=>buildCloudinaryPrepUrl(view.url,{
+      removeBackground,
+      restore:restoreImage,
+      upscale:upscaleImage,
+      improve:improveImage,
+      width:view.width,
+      height:view.height
+    })),
+    [
+      cloudinaryViews,
+      removeBackground,
+      restoreImage,
+      upscaleImage,
+      improveImage
+    ]
   );
 
   const canUpscale=canCloudinaryUpscale(cloudinaryWidth,cloudinaryHeight);
@@ -148,7 +169,8 @@ export default function Studio(){
         cloudName:CLOUDINARY_CLOUD_NAME,
         uploadPreset:CLOUDINARY_UPLOAD_PRESET,
         sources:["local","url","camera"],
-        multiple:false,
+        multiple:accurateMode,
+        maxFiles:accurateMode?Math.max(1,6-cloudinaryViews.length):1,
         resourceType:"image",
         folder:"pixel-forge/source-images",
         clientAllowedFormats:["png","jpg","jpeg","webp"],
@@ -181,14 +203,35 @@ export default function Studio(){
         }
 
         if(result?.event==="success"){
-          setCloudinaryUrl(result.info.secure_url||"");
-          setCloudinaryPublicId(result.info.public_id||"cloudinary-source");
-          setCloudinaryWidth(Number(result.info.width||0));
-          setCloudinaryHeight(Number(result.info.height||0));
+          const view:CloudinaryView={
+            url:result.info.secure_url||"",
+            publicId:result.info.public_id||"cloudinary-source",
+            width:Number(result.info.width||0),
+            height:Number(result.info.height||0)
+          };
+
+          if(accurateMode){
+            setCloudinaryViews(current=>{
+              if(current.some(item=>item.url===view.url)) return current;
+              return [...current,view].slice(0,6);
+            });
+            setCloudinaryUrl(current=>current||view.url);
+            setCloudinaryPublicId(current=>current||view.publicId);
+            setCloudinaryWidth(current=>current||view.width);
+            setCloudinaryHeight(current=>current||view.height);
+            clearResult("MULTI-VIEW IMAGE ADDED");
+          }else{
+            setCloudinaryViews([view]);
+            setCloudinaryUrl(view.url);
+            setCloudinaryPublicId(view.publicId);
+            setCloudinaryWidth(view.width);
+            setCloudinaryHeight(view.height);
+            clearResult("CLOUDINARY READY");
+            widget.close();
+          }
+
           setSourceFile(null);
-          clearResult("CLOUDINARY READY");
           setPipeline("done");
-          widget.close();
         }
       }
     );
@@ -278,8 +321,12 @@ export default function Studio(){
 
     const body=new FormData();
 
-    if(cloudinaryPrepUrl){
-      body.append("cloudinary_urls",cloudinaryPrepUrl);
+    const preparedViews=accurateMode
+      ?cloudinaryPrepUrls.slice(0,6)
+      :(cloudinaryPrepUrl?[cloudinaryPrepUrl]:[]);
+
+    if(preparedViews.length){
+      body.append("cloudinary_urls",preparedViews.join(","));
     }else{
       const file=await getWorkingFile();
       if(!file) throw new Error("Add an image first.");
@@ -371,7 +418,7 @@ export default function Studio(){
   }
 
   const busy=pipeline==="analyzing"||pipeline==="converting";
-  const hasSource=Boolean(sourceFile||cloudinaryUrl);
+  const hasSource=Boolean(sourceFile||cloudinaryUrl||cloudinaryViews.length);
   const full3D=modelMode==="full3d";
 
   return <section className="studioWrap" id="studio">
@@ -386,16 +433,56 @@ export default function Studio(){
       <aside className="panel source">
         <div className="panelLabel"><Upload size={14}/> SOURCE</div>
 
+        <div className="accuracyMode">
+          <div>
+            <strong>MORE ACCURATE 3D</strong>
+            <small>{accurateMode?"MULTI-VIEW · UP TO 6 PHOTOS":"QUICK MODE · 1 PHOTO"}</small>
+          </div>
+          <button
+            type="button"
+            className={accurateMode?"toggle on":"toggle"}
+            aria-pressed={accurateMode}
+            onClick={()=>{
+              const next=!accurateMode;
+              setAccurateMode(next);
+              if(!next){
+                setCloudinaryViews(current=>current.slice(0,1));
+              }
+              clearResult(next?"MULTI-VIEW MODE ON":"QUICK MODE ON");
+            }}
+          >
+            <span/>
+          </button>
+        </div>
+
+        {accurateMode&&<div className="multiViewGuide">
+          <b>{cloudinaryViews.length}/6 VIEWS</b>
+          <span>FRONT · BACK · LEFT · RIGHT · TOP · EXTRA</span>
+        </div>}
+
         <button
           className="cloudinaryUpload"
           onClick={openCloudinary}
-          disabled={busy}
+          disabled={busy||(accurateMode&&cloudinaryViews.length>=6)}
         >
           <Cloud size={15}/>
-          {cloudinaryUrl
-            ?"REPLACE CLOUDINARY ASSET"
-            :"UPLOAD WITH CLOUDINARY"}
+          {accurateMode
+            ?(cloudinaryViews.length>=6?"6 VIEWS READY":"ADD MULTI-VIEW PHOTOS")
+            :cloudinaryUrl
+              ?"REPLACE CLOUDINARY ASSET"
+              :"UPLOAD WITH CLOUDINARY"}
         </button>
+
+        {accurateMode&&cloudinaryViews.length>1&&<div className="multiViewList">
+          {cloudinaryViews.map((view,index)=><a
+            key={view.url}
+            href={view.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            VIEW {index+1}
+          </a>)}
+        </div>}
 
         {cloudinaryUrl&&<>
           <a
@@ -481,6 +568,7 @@ export default function Studio(){
                 setCloudinaryPublicId("");
                 setCloudinaryWidth(0);
                 setCloudinaryHeight(0);
+                setCloudinaryViews([]);
               }
 
               clearResult(next?"LOCAL IMAGE LOADED":"READY");
