@@ -112,7 +112,9 @@ export default function Studio(){
     ]
   );
 
-  const canUpscale=canCloudinaryUpscale(cloudinaryWidth,cloudinaryHeight);
+  const canUpscale=accurateMode&&cloudinaryViews.length
+    ?cloudinaryViews.every(view=>canCloudinaryUpscale(view.width,view.height))
+    :canCloudinaryUpscale(cloudinaryWidth,cloudinaryHeight);
 
   function clearResult(nextMessage?:string){
     setDownloadUrl(null);
@@ -608,7 +610,9 @@ export default function Studio(){
             {restoreImage?"RESTORED · ":""}
             {upscaleImage&&canUpscale?"4× UPSCALED":"ORIGINAL RES"}
             {!canUpscale&&cloudinaryWidth>0
-              ?" · UPSCALE UNAVAILABLE ABOVE 4.2MP"
+              ?accurateMode
+                ?" · UPSCALE UNAVAILABLE FOR ONE OR MORE VIEWS"
+                :" · UPSCALE UNAVAILABLE ABOVE 4.2MP"
               :""}
           </div>
 
