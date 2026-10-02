@@ -6,7 +6,8 @@ import {CheckCircle2,Cloud,Download,Loader2,SlidersHorizontal,Sparkles,Upload} f
 
 const StudioScene=dynamic(()=>import("./scenes/StudioScene"),{ssr:false});
 
-type ModelMode="relief"|"lithophane";\ntype OutputFormat="stl"|"glb";
+type ModelMode="relief"|"lithophane";
+type OutputFormat="stl"|"glb";
 type PipelineState="ready"|"analyzing"|"converting"|"done"|"error";
 
 const API_BASE=(process.env.NEXT_PUBLIC_API_URL||"http://localhost:8000").replace(/\/$/,"");
@@ -22,7 +23,8 @@ export default function Studio(){
   const [cloudinaryUrl,setCloudinaryUrl]=useState("");
   const [cloudinaryPublicId,setCloudinaryPublicId]=useState("");
   const [description,setDescription]=useState("");
-  const [modelMode,setModelMode]=useState<ModelMode>("relief");\n  const [outputFormat,setOutputFormat]=useState<OutputFormat>("stl");
+  const [modelMode,setModelMode]=useState<ModelMode>("relief");
+  const [outputFormat,setOutputFormat]=useState<OutputFormat>("stl");
   const [pipeline,setPipeline]=useState<PipelineState>("ready");
   const [message,setMessage]=useState("READY");
   const [downloadUrl,setDownloadUrl]=useState<string|null>(null);
@@ -166,7 +168,9 @@ export default function Studio(){
       const fileUrl=String(data.file_url||"");
       setDownloadUrl(fileUrl||null);
       setPipeline("done");
-      const resultMode=String(data.mode||modelMode).toUpperCase();\n      const resultFormat=String(data.format||outputFormat).toUpperCase();\n      setMessage(`${resultMode} → ${resultFormat} READY`);
+      const resultMode=String(data.mode||modelMode).toUpperCase();
+      const resultFormat=String(data.format||outputFormat).toUpperCase();
+      setMessage(`${resultMode} → ${resultFormat} READY`);
 
       if(fileUrl){
         const anchor=document.createElement("a");
