@@ -137,21 +137,6 @@ export default function Studio(){
     }
   }
 
-  async function downloadGeneratedFile(url:string,format:OutputFormat){
-    const response=await fetch(url);
-    if(!response.ok) throw new Error("Generated file could not be downloaded.");
-
-    const blob=await response.blob();
-    const objectUrl=URL.createObjectURL(blob);
-    const anchor=document.createElement("a");
-    anchor.href=objectUrl;
-    anchor.download=`pixel-forge-${modelMode}-${Date.now()}.${format}`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
-  }
-
   async function exportModel(){
     setPipeline("converting");
     setMessage("BUILDING MESH");
@@ -179,16 +164,15 @@ export default function Studio(){
       const data=await response.json();
       if(!response.ok) throw new Error(data?.detail||"Conversion failed.");
 
-      const fileUrl=String(data.file_url||"");
+      const fileUrl=String(data.download_url||data.file_url||"");
       setDownloadUrl(fileUrl||null);
       setPipeline("done");
       const resultMode=String(data.mode||modelMode).toUpperCase();
       const resultFormat=String(data.format||outputFormat).toUpperCase();
       setMessage(`${resultMode} → ${resultFormat} READY`);
 
-      if(fileUrl){
-        await downloadGeneratedFile(fileUrl,outputFormat);
-      }
+      // Keep the generated file ready for an explicit user download.
+      // A direct user tap on the attachment URL is reliable on mobile browsers.
     }catch(error){
       setPipeline("error");
       setMessage(error instanceof Error?error.message.toUpperCase().slice(0,36):"CONVERSION ERROR");
@@ -282,24 +266,29 @@ export default function Studio(){
           <strong>100 mm · DEPTH {depthMm} mm · RES {resolution}</strong>
         </div>
 
+        <div className="dimension">
+          <span>MODEL ENGINE</span>
+          <strong>{modelMode==="relief"?"2.5D HEIGHT-MAP RELIEF":"THICKNESS-BASED LITHOPHANE"}</strong>
+        </div>
+
         <label className="fieldLabel">MODEL TYPE</label>
         <div className="formats">
-          <button className={modelMode==="relief"?"active":""} onClick={()=>setModelMode("relief")}>RELIEF</button>
-          <button className={modelMode==="lithophane"?"active":""} onClick={()=>setModelMode("lithophane")}>LITHOPHANE</button>
+          <button className={modelMode==="relief"?"active":""} onClick={()=>{setModelMode("relief");setDownloadUrl(null);setMessage("RELIEF (2.5D) SELECTED")}}>RELIEF (2.5D)</button>
+          <button className={modelMode==="lithophane"?"active":""} onClick={()=>{setModelMode("lithophane");setDownloadUrl(null);setMessage("LITHOPHANE SELECTED")}}>LITHOPHANE</button>
         </div>
 
         <label className="fieldLabel">EXPORT FORMAT</label>
         <div className="formats">
-          <button className={outputFormat==="stl"?"active":""} onClick={()=>setOutputFormat("stl")}>STL</button>
-          <button className={outputFormat==="glb"?"active":""} onClick={()=>setOutputFormat("glb")}>GLB</button>
+          <button className={outputFormat==="stl"?"active":""} onClick={()=>{setOutputFormat("stl");setDownloadUrl(null)}}>STL</button>
+          <button className={outputFormat==="glb"?"active":""} onClick={()=>{setOutputFormat("glb");setDownloadUrl(null)}}>GLB</button>
         </div>
 
-        <button className="export" onClick={()=>downloadUrl?void downloadGeneratedFile(downloadUrl,outputFormat):void exportModel()} disabled={busy}>
+        <button className="export" onClick={exportModel} disabled={busy}>
           {pipeline==="converting"?<Loader2 size={15} className="spin"/>:downloadUrl?<CheckCircle2 size={15}/>:<Download size={15}/>}
-          {pipeline==="converting"?"GENERATING MODEL":downloadUrl?"DOWNLOAD AGAIN":"EXPORT MODEL"}
+          {pipeline==="converting"?"GENERATING MODEL":"GENERATE MODEL"}
         </button>
 
-        {downloadUrl&&<button className="resultLink" onClick={()=>void downloadGeneratedFile(downloadUrl,outputFormat)}>DOWNLOAD GENERATED FILE ↓</button>}
+        {downloadUrl&&<a className="resultLink" href={downloadUrl}>{`DOWNLOAD ${outputFormat.toUpperCase()} ↓`}</a>}
       </aside>
     </div>
   </section>
