@@ -96,12 +96,20 @@ async def generate_ai_3d(
             detail=f"Direct image-to-3D generation failed: {exc}",
         ) from exc
 
+    if not submitted.glb_url and not submitted.job_id:
+        raise HTTPException(
+            status_code=502,
+            detail="3D provider returned neither a model URL nor a pollable job id.",
+        )
+
     remote_status = submitted.status.lower()
-    if submitted.glb_url or remote_status == "done":
+    if submitted.glb_url:
         status = "done"
     elif remote_status in {"failed", "error"}:
         status = "failed"
     else:
+        # Some providers can briefly report a terminal-looking status before
+        # the model URL is published. Keep the job pollable until a GLB exists.
         status = "queued"
 
     prompt_record = (
