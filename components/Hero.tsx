@@ -11,26 +11,58 @@ export default function Hero(){
 
   useEffect(()=>{
     const ctx=gsap.context(()=>{
-      gsap.from(".heroWord",{y:130,opacity:0,rotateX:-32,stagger:.095,duration:1.05,ease:"power4.out"});
-      gsap.from(".heroCopy p",{y:24,opacity:0,duration:.72,delay:.44,ease:"power3.out"});
-      gsap.from(".heroMetaRow",{y:18,opacity:0,duration:.62,delay:.58,ease:"power3.out"});
-      gsap.from(".primary",{scale:.9,opacity:0,duration:.65,delay:.68,ease:"back.out(1.7)"});
-      gsap.from(".eyebrow,.dragHint,.scrollHint,.heroIndex",{opacity:0,y:10,stagger:.07,duration:.55,delay:.82});
-      gsap.to(".heroScene",{y:-12,duration:3.6,ease:"sine.inOut",repeat:-1,yoyo:true});
+      gsap.from(".heroWord",{
+        y:120,
+        opacity:0,
+        rotateX:-24,
+        stagger:.08,
+        duration:1.05,
+        ease:"power4.out"
+      });
+      gsap.from(".heroKicker,.heroIntro,.heroSpecs,.primary",{
+        y:22,
+        opacity:0,
+        stagger:.08,
+        duration:.7,
+        delay:.35,
+        ease:"power3.out"
+      });
+      gsap.from(".heroScene",{
+        scale:.82,
+        opacity:0,
+        duration:1.3,
+        delay:.2,
+        ease:"power3.out"
+      });
+      gsap.from(".eyebrow,.dragHint,.scrollHint,.heroIndex",{
+        opacity:0,
+        y:10,
+        stagger:.06,
+        duration:.5,
+        delay:.75
+      });
+      gsap.to(".heroScene",{
+        y:-9,
+        duration:3.8,
+        ease:"sine.inOut",
+        repeat:-1,
+        yoyo:true
+      });
     },root);
 
-    const heading=root.current?.querySelector(".heroCopy h1");
-    const copy=root.current?.querySelector(".heroCopy p");
-    const xTo=heading?gsap.quickTo(heading,"x",{duration:.65,ease:"power3.out"}):null;
-    const yTo=heading?gsap.quickTo(heading,"y",{duration:.65,ease:"power3.out"}):null;
-    const copyX=copy?gsap.quickTo(copy,"x",{duration:.8,ease:"power3.out"}):null;
+    const scene=root.current?.querySelector(".heroScene");
+    const title=root.current?.querySelector(".heroEditorial");
+
+    const sceneX=scene?gsap.quickTo(scene,"x",{duration:.8,ease:"power3.out"}):null;
+    const sceneY=scene?gsap.quickTo(scene,"y",{duration:.8,ease:"power3.out"}):null;
+    const titleX=title?gsap.quickTo(title,"x",{duration:.9,ease:"power3.out"}):null;
 
     const move=(e:PointerEvent)=>{
       const nx=e.clientX/window.innerWidth-.5;
       const ny=e.clientY/window.innerHeight-.5;
-      xTo?.(nx*14);
-      yTo?.(ny*8);
-      copyX?.(nx*7);
+      sceneX?.(nx*15);
+      sceneY?.(ny*10);
+      titleX?.(nx*-5);
     };
 
     window.addEventListener("pointermove",move,{passive:true});
@@ -47,32 +79,81 @@ export default function Hero(){
     <div className="colorOrb orbThree"/>
     <div className="colorOrb orbFour"/>
 
-    <div className="eyebrow"><span className="pulse"/>IMAGE → GEOMETRY / 001</div>
-
-    <div className="heroCopy">
-      <h1>
-        <span className="heroLine"><span className="heroWord">TURN</span></span>
-        <span className="heroLine"><span className="heroWord chroma">PIXELS</span></span>
-        <span className="heroLine"><span className="heroWord">INTO <b className="hotWord">FORM.</b></span></span>
-      </h1>
-
-      <div className="heroMetaRow">
-        <span><i className="dot redDot"/>LIVE 3D</span>
-        <span><i className="dot yellowDot"/>STL / GLB / LITHO</span>
-      </div>
-
-      <p>Transform ordinary images into tactile digital geometry. Shape depth, explore the mesh, export the object.</p>
-      <a href="#studio" className="primary">ENTER THE FORGE <span>↗</span></a>
+    <div className="eyebrow">
+      <span className="pulse"/>
+      IMAGE-TO-3D SYSTEM / PF-01
     </div>
 
-    <div className="heroScene"><ForgeScene/></div>
-    <div className="dragHint"><Move3d size={17}/><span>DRAG TO EXPLORE</span></div>
-    <div className="scrollHint"><ArrowDown size={16}/><span>SCROLL TO DECONSTRUCT</span></div>
-    <div className="heroIndex">PF<br/><span>01—04</span></div>
+    <div className="heroEditorial">
+      <div className="heroKicker">AI RECONSTRUCTION FOR PHYSICAL FORM</div>
+
+      <h1>
+        <span className="heroLine">
+          <span className="heroWord">PIXELS</span>
+        </span>
+        <span className="heroLine heroLineRight">
+          <span className="heroWord chroma">BECOME</span>
+        </span>
+        <span className="heroLine">
+          <span className="heroWord">OBJECTS.</span>
+        </span>
+      </h1>
+    </div>
+
+    <div className="heroIntro">
+      <p>
+        Turn one image or a full multi-view set into usable 3D geometry.
+        Preview, refine and export as textured GLB or print-ready STL.
+      </p>
+      <a href="#studio" className="primary">
+        ENTER THE FORGE
+        <span>↗</span>
+      </a>
+    </div>
+
+    <div className="heroGhost" aria-hidden="true">FORGE</div>
+
+    <div className="heroScene">
+      <ForgeScene/>
+    </div>
+
+    <div className="heroSpecs">
+      <article>
+        <span>INPUT</span>
+        <strong>1–6 VIEWS</strong>
+        <small>Cloudinary or local images</small>
+      </article>
+      <article>
+        <span>OUTPUT</span>
+        <strong>GLB / STL</strong>
+        <small>Color or geometry-only export</small>
+      </article>
+      <article>
+        <span>ENGINE</span>
+        <strong>DIRECT 3D</strong>
+        <small>Fast or standard generation</small>
+      </article>
+    </div>
+
+    <div className="dragHint">
+      <Move3d size={16}/>
+      <span>DRAG THE FORM</span>
+    </div>
+
+    <div className="scrollHint">
+      <ArrowDown size={15}/>
+      <span>SCROLL TO EXPLORE</span>
+    </div>
+
+    <div className="heroIndex">
+      PF
+      <br/>
+      <span>01 / 03</span>
+    </div>
 
     <div className="heroTicker">
-      <span>PIXEL FORGE · IMAGE TO DEPTH · DEPTH TO MESH · MESH TO FORM · </span>
-      <span>PIXEL FORGE · IMAGE TO DEPTH · DEPTH TO MESH · MESH TO FORM · </span>
+      <span>PIXEL FORGE · IMAGE → GEOMETRY · MULTI-VIEW → FORM · GLB · STL · </span>
+      <span>PIXEL FORGE · IMAGE → GEOMETRY · MULTI-VIEW → FORM · GLB · STL · </span>
     </div>
   </section>
 }
