@@ -137,6 +137,21 @@ export default function Studio(){
     }
   }
 
+  async function downloadGeneratedFile(url:string,format:OutputFormat){
+    const response=await fetch(url);
+    if(!response.ok) throw new Error("Generated file could not be downloaded.");
+
+    const blob=await response.blob();
+    const objectUrl=URL.createObjectURL(blob);
+    const anchor=document.createElement("a");
+    anchor.href=objectUrl;
+    anchor.download=`pixel-forge-${modelMode}-${Date.now()}.${format}`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
+  }
+
   async function exportModel(){
     setPipeline("converting");
     setMessage("BUILDING MESH");
@@ -172,11 +187,7 @@ export default function Studio(){
       setMessage(`${resultMode} → ${resultFormat} READY`);
 
       if(fileUrl){
-        const anchor=document.createElement("a");
-        anchor.href=fileUrl;
-        anchor.target="_blank";
-        anchor.rel="noopener noreferrer";
-        anchor.click();
+        await downloadGeneratedFile(fileUrl,outputFormat);
       }
     }catch(error){
       setPipeline("error");
@@ -283,12 +294,12 @@ export default function Studio(){
           <button className={outputFormat==="glb"?"active":""} onClick={()=>setOutputFormat("glb")}>GLB</button>
         </div>
 
-        <button className="export" onClick={exportModel} disabled={busy}>
+        <button className="export" onClick={()=>downloadUrl?void downloadGeneratedFile(downloadUrl,outputFormat):void exportModel()} disabled={busy}>
           {pipeline==="converting"?<Loader2 size={15} className="spin"/>:downloadUrl?<CheckCircle2 size={15}/>:<Download size={15}/>}
           {pipeline==="converting"?"GENERATING MODEL":downloadUrl?"DOWNLOAD AGAIN":"EXPORT MODEL"}
         </button>
 
-        {downloadUrl&&<a className="resultLink" href={downloadUrl} target="_blank" rel="noopener noreferrer">OPEN GENERATED FILE ↗</a>}
+        {downloadUrl&&<button className="resultLink" onClick={()=>void downloadGeneratedFile(downloadUrl,outputFormat)}>DOWNLOAD GENERATED FILE ↓</button>}
       </aside>
     </div>
   </section>
