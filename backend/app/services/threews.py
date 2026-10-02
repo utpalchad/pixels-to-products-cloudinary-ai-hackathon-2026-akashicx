@@ -9,7 +9,7 @@ from app.models.schemas import ThreeWSSubmitResponse
 
 
 class ThreeWSService:
-    """Client for three.ws' free, keyless textured GLB generation lane."""
+    """Client for three.ws direct image-to-3D and multi-view reconstruction."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -25,7 +25,7 @@ class ThreeWSService:
             or data.get("creation_id")
             or fallback_job_id
         )
-        status = str(data.get("status") or ("done" if glb_url else "pending"))
+        status = str(data.get("status") or ("done" if glb_url else "queued"))
 
         return ThreeWSSubmitResponse(
             status=status,
@@ -35,41 +35,64 @@ class ThreeWSService:
             raw=data,
         )
 
-    async def submit_text(self, prompt: str) -> ThreeWSSubmitResponse:
-        clean = " ".join(prompt.split()).strip()
-        if len(clean) < 3:
-            raise ValueError("A descriptive 3D prompt is required.")
-        clean = clean[:1000]
+    async def submit_images(
+        self,
+        image_urls: list[str],
+        *,
+        prompt: str = "",
+        tier: str = "standard",
+    ) -> ThreeWSSubmitResponse:
+        if not 1 <= len(image_urls) <= 6:
+            raise ValueError("Direct image reconstruction accepts between 1 and 6 views.")
 
-        payload = {
-            "prompt": clean,
-            "format": "glb",
+        if tier not in {"draft", "standard"}:
+            raise ValueError("Pixel Forge free direct reconstruction supports draft or standard.")
+
+        payload: dict = {
+            "image_urls": image_urls,
+            "tier": tier,
         }
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
+        clean_prompt = " ".join(prompt.split()).strip()
+        if clean_prompt:
+            payload["prompt"] = clean_prompt[:1000]
+
+        async with httpx.AsyncClient(timeout=240.0) as client:
             response = await client.post(
-                f"{self.base_url}/api/3d/generate",
+                f"{self.base_url}/api/forge",
                 json=payload,
+                headers={"x-forge-client": "pixel-forge"},
             )
+
             if response.status_code == 429:
                 retry_after = response.headers.get("retry-after", "later")
                 raise RuntimeError(
-                    f"Free 3D generation rate limit reached. Retry after {retry_after}."
+                    f"3D generation rate limit reached. Retry after {retry_after}."
                 )
+
+            if response.status_code == 402:
+                raise RuntimeError(
+                    "The selected three.ws reconstruction lane requires payment or access. "
+                    "Try the free standard lane again later."
+                )
+
             response.raise_for_status()
             return self._parse(response.json())
 
     async def poll(self, remote_job_id: str) -> ThreeWSSubmitResponse:
-        async with httpx.AsyncClient(timeout=90.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.get(
-                f"{self.base_url}/api/3d/generate",
+                f"{self.base_url}/api/forge",
                 params={"job": remote_job_id},
+                headers={"x-forge-client": "pixel-forge"},
             )
+
             if response.status_code == 429:
                 retry_after = response.headers.get("retry-after", "later")
                 raise RuntimeError(
-                    f"Free 3D generation rate limit reached. Retry after {retry_after}."
+                    f"3D generation rate limit reached. Retry after {retry_after}."
                 )
+
             response.raise_for_status()
             return self._parse(response.json(), fallback_job_id=remote_job_id)
 
