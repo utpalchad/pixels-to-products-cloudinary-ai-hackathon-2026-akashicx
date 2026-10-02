@@ -146,8 +146,7 @@ export default function Studio(){
       const file=await getWorkingFile();
       if(!file) throw new Error("Add an image first.");
 
-      const mode=choice==="litho"?"lithophane":"relief";
-      const outputFormat=choice==="glb"?"glb":"stl";
+      const mode=modelMode;
 
       const body=new FormData();
       body.append("file",file);
