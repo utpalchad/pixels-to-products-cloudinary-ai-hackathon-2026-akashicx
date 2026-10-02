@@ -11,7 +11,7 @@ export default function Navbar(){
     <nav>
       <a href="#process">PROCESS</a>
       <a href="#studio">STUDIO</a>
-      <a href="https://github.com/utpalchad/pixel_forge" target="_blank" rel="noreferrer">GITHUB ↗</a>
+      <a href="https://github.com/utpalchad/pixel_forge" target="_blank" rel="noreferrer">GITHUB ↗</a>\n      <button type="button" className="signInButton" aria-disabled="true">SIGN IN</button>
     </nav>
 
     <a className="navCta" href="#studio">
