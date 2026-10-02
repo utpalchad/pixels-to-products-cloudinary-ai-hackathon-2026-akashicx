@@ -618,7 +618,7 @@ export default function Studio(){
         <StudioScene depth={depth} wire={wire}/>
         <div className="viewTop">
           <span>{full3D?"AI FULL 3D":"LIVE GEOMETRY"}</span>
-          <span>{full3D?"TEXTURED GLB":`${resolution} × ${resolution}`}</span>
+          <span>{full3D?(outputFormat==="stl"?"STL · NO COLOR":"TEXTURED GLB"):`${resolution} × ${resolution}`}</span>
         </div>
         <button className="wireBtn" onClick={()=>setWire(!wire)}>
           {wire?"SOLID":"WIREFRAME"}
@@ -689,20 +689,28 @@ export default function Studio(){
 
         <label className="fieldLabel">EXPORT FORMAT</label>
         <div className="formats">
-          {!full3D&&<button
+          <button
             className={outputFormat==="stl"?"active":""}
             onClick={()=>{
               setOutputFormat("stl");
-              clearResult();
+              if(full3D){
+                setMessage("FULL 3D STL · NO COLOR SELECTED");
+              }else{
+                clearResult();
+              }
             }}
           >
-            STL
-          </button>}
+            {full3D?"STL · NO COLOR":"STL"}
+          </button>
           <button
             className={outputFormat==="glb"?"active":""}
             onClick={()=>{
               setOutputFormat("glb");
-              clearResult();
+              if(full3D){
+                setMessage("FULL 3D GLB · COLOR SELECTED");
+              }else{
+                clearResult();
+              }
             }}
           >
             {full3D?"GLB · COLOR":"GLB"}
@@ -757,15 +765,34 @@ export default function Studio(){
             :(full3D?"GENERATE FULL 3D":"GENERATE MODEL")}
         </button>
 
-        {downloadUrl&&<a className="resultLink" href={downloadUrl}>
-          {full3D?"DOWNLOAD TEXTURED GLB ↓":`DOWNLOAD ${outputFormat.toUpperCase()} ↓`}
+        {!full3D&&downloadUrl&&<a className="resultLink" href={downloadUrl}>
+          DOWNLOAD {outputFormat.toUpperCase()} ↓
         </a>}
 
         {full3D&&full3DJobId&&<a
           className="resultLink"
-          href={`${API_BASE}/api/v1/jobs/${full3DJobId}/download-stl`}
+          href={
+            outputFormat==="stl"
+              ?`${API_BASE}/api/v1/jobs/${full3DJobId}/download-stl`
+              :(downloadUrl||`${API_BASE}/api/v1/jobs/${full3DJobId}/download`)
+          }
         >
-          DOWNLOAD FULL 3D STL ↓
+          {outputFormat==="stl"
+            ?"DOWNLOAD FULL 3D STL · NO COLOR ↓"
+            :"DOWNLOAD TEXTURED GLB · COLOR ↓"}
+        </a>}
+
+        {full3D&&full3DJobId&&<a
+          className="resultLink"
+          href={
+            outputFormat==="stl"
+              ?(downloadUrl||`${API_BASE}/api/v1/jobs/${full3DJobId}/download`)
+              :`${API_BASE}/api/v1/jobs/${full3DJobId}/download-stl`
+          }
+        >
+          {outputFormat==="stl"
+            ?"ALSO DOWNLOAD GLB · COLOR ↓"
+            :"ALSO DOWNLOAD STL · NO COLOR ↓"}
         </a>}
 
         {viewerUrl&&<a
