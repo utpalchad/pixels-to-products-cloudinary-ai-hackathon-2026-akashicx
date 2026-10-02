@@ -124,7 +124,7 @@ export default function Studio(){
   async function fetchCloudinaryReady(url:string){
     let lastStatus=0;
 
-    for(let attempt=0;attempt<8;attempt++){
+    for(let attempt=0;attempt<15;attempt++){
       const response=await fetch(url);
       lastStatus=response.status;
 
@@ -132,7 +132,7 @@ export default function Studio(){
 
       if(response.status===420||response.status===423){
         setMessage("CLOUDINARY AI PREPROCESSING");
-        await wait(Math.min(1500+attempt*500,4000));
+        await wait(Math.min(1500+attempt*500,5000));
         continue;
       }
 
@@ -311,8 +311,6 @@ export default function Studio(){
 
   async function pollFull3D(jobId:string){
     const startedAt=Date.now();
-    let attempt=0;
-
     // Multi-view reconstruction can legitimately take several minutes on
     // shared hosted compute. Do not abandon a healthy provider job simply
     // because it crosses an arbitrary browser-side timeout.
@@ -336,7 +334,6 @@ export default function Studio(){
         });
         job=await response.json();
       }catch{
-        attempt+=1;
         const elapsedSeconds=Math.floor((Date.now()-startedAt)/1000);
         const minutes=Math.floor(elapsedSeconds/60);
         const seconds=String(elapsedSeconds%60).padStart(2,"0");
@@ -369,7 +366,6 @@ export default function Studio(){
           :`FULL 3D · PROCESSING · ${minutes}:${seconds}`
       );
 
-      attempt+=1;
     }
   }
 
@@ -481,6 +477,7 @@ export default function Studio(){
   const busy=pipeline==="analyzing"||pipeline==="converting";
   const hasSource=Boolean(sourceFile||localFiles.length||cloudinaryUrl||cloudinaryViews.length);
   const full3D=modelMode==="full3d";
+  const activeViewCount=cloudinaryViews.length||localFiles.length;
 
   return <section className="studioWrap" id="studio">
     <div className="studioTitle">
@@ -503,6 +500,7 @@ export default function Studio(){
             type="button"
             className={accurateMode?"toggle on":"toggle"}
             aria-pressed={accurateMode}
+            disabled={busy}
             onClick={()=>{
               const next=!accurateMode;
               setAccurateMode(next);
@@ -522,7 +520,7 @@ export default function Studio(){
         </div>
 
         {accurateMode&&<div className="multiViewGuide">
-          <b>{cloudinaryViews.length}/6 VIEWS</b>
+          <b>{activeViewCount}/6 VIEWS</b>
           <span>FRONT · BACK · LEFT · RIGHT · TOP · EXTRA</span>
         </div>}
 
@@ -564,6 +562,7 @@ export default function Studio(){
           <div className="cloudinaryTools">
             <button
               className={removeBackground?"active":""}
+              disabled={busy}
               onClick={()=>{
                 setRemoveBackground(!removeBackground);
                 clearResult("CLOUDINARY PREP UPDATED");
@@ -573,6 +572,7 @@ export default function Studio(){
             </button>
             <button
               className={improveImage?"active":""}
+              disabled={busy}
               onClick={()=>{
                 setImproveImage(!improveImage);
                 clearResult("CLOUDINARY PREP UPDATED");
@@ -582,6 +582,7 @@ export default function Studio(){
             </button>
             <button
               className={restoreImage?"active":""}
+              disabled={busy}
               onClick={()=>{
                 setRestoreImage(!restoreImage);
                 clearResult("CLOUDINARY PREP UPDATED");
@@ -591,7 +592,7 @@ export default function Studio(){
             </button>
             <button
               className={upscaleImage?"active":""}
-              disabled={!canUpscale}
+              disabled={busy||!canUpscale}
               onClick={()=>{
                 setUpscaleImage(!upscaleImage);
                 clearResult("CLOUDINARY PREP UPDATED");
@@ -627,6 +628,7 @@ export default function Studio(){
             type="file"
             accept="image/png,image/jpeg,image/webp"
             multiple={accurateMode}
+            disabled={busy}
             onChange={e=>{
               const selected=Array.from(e.target.files||[]);
               const nextFiles=(accurateMode?selected.slice(0,6):selected.slice(0,1));
@@ -741,6 +743,7 @@ export default function Studio(){
         <div className="formats">
           <button
             className={modelMode==="relief"?"active":""}
+            disabled={busy}
             onClick={()=>{
               setModelMode("relief");
               clearResult("RELIEF (2.5D) SELECTED");
@@ -750,6 +753,7 @@ export default function Studio(){
           </button>
           <button
             className={modelMode==="lithophane"?"active":""}
+            disabled={busy}
             onClick={()=>{
               setModelMode("lithophane");
               clearResult("LITHOPHANE SELECTED");
@@ -759,6 +763,7 @@ export default function Studio(){
           </button>
           <button
             className={modelMode==="full3d"?"active":""}
+            disabled={busy}
             onClick={()=>{
               setModelMode("full3d");
               setOutputFormat("glb");
@@ -773,6 +778,7 @@ export default function Studio(){
         <div className="formats">
           <button
             className={outputFormat==="stl"?"active":""}
+            disabled={busy}
             onClick={()=>{
               setOutputFormat("stl");
               if(full3D){
@@ -786,6 +792,7 @@ export default function Studio(){
           </button>
           <button
             className={outputFormat==="glb"?"active":""}
+            disabled={busy}
             onClick={()=>{
               setOutputFormat("glb");
               if(full3D){
@@ -804,6 +811,7 @@ export default function Studio(){
           <div className="formats">
             <button
               className={generationMode==="fast"?"active":""}
+              disabled={busy}
               onClick={()=>{
                 setGenerationMode("fast");
                 clearResult("FAST MODE SELECTED");
@@ -813,6 +821,7 @@ export default function Studio(){
             </button>
             <button
               className={generationMode==="standard"?"active":""}
+              disabled={busy}
               onClick={()=>{
                 setGenerationMode("standard");
                 clearResult("STANDARD MODE SELECTED");
