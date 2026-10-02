@@ -21,6 +21,7 @@ const StudioScene=dynamic(()=>import("./scenes/StudioScene"),{ssr:false});
 
 type ModelMode="relief"|"lithophane"|"full3d";
 type OutputFormat="stl"|"glb";
+type GenerationMode="fast"|"standard";
 type PipelineState="ready"|"analyzing"|"converting"|"done"|"error";
 type CloudinaryView={url:string;publicId:string;width:number;height:number};
 
@@ -49,6 +50,7 @@ export default function Studio(){
   const [description,setDescription]=useState("");
   const [modelMode,setModelMode]=useState<ModelMode>("relief");
   const [outputFormat,setOutputFormat]=useState<OutputFormat>("stl");
+  const [generationMode,setGenerationMode]=useState<GenerationMode>("standard");
   const [pipeline,setPipeline]=useState<PipelineState>("ready");
   const [message,setMessage]=useState("READY");
   const [downloadUrl,setDownloadUrl]=useState<string|null>(null);
@@ -319,7 +321,7 @@ export default function Studio(){
 
   async function generateFull3D(){
     setPipeline("converting");
-    setMessage("REFERENCE PHOTOS → FULL 3D");
+    setMessage(generationMode==="fast"?"FAST 3D → RECONSTRUCTING":"STANDARD 3D → RECONSTRUCTING");
     clearResult();
 
     const body=new FormData();
@@ -338,7 +340,7 @@ export default function Studio(){
 
     body.append("vision_provider","auto");
     body.append("description",description);
-    body.append("tier","standard");
+    body.append("tier",generationMode==="fast"?"draft":"standard");
     body.append("analyze_image","false");
 
     const response=await fetch(`${API_BASE}/api/v1/ai3d/generate`,{
@@ -707,10 +709,38 @@ export default function Studio(){
           </button>
         </div>
 
-        {full3D&&<div className="dimension">
-          <span>FULL 3D MODE</span>
-          <strong>STANDARD · DIRECT PHOTO · MULTI-VIEW · GLB + STL</strong>
-        </div>}
+        {full3D&&<>
+          <label className="fieldLabel">GENERATION MODE</label>
+          <div className="formats">
+            <button
+              className={generationMode==="fast"?"active":""}
+              onClick={()=>{
+                setGenerationMode("fast");
+                clearResult("FAST MODE SELECTED");
+              }}
+            >
+              FAST
+            </button>
+            <button
+              className={generationMode==="standard"?"active":""}
+              onClick={()=>{
+                setGenerationMode("standard");
+                clearResult("STANDARD MODE SELECTED");
+              }}
+            >
+              STANDARD
+            </button>
+          </div>
+
+          <div className="dimension">
+            <span>FULL 3D MODE</span>
+            <strong>
+              {generationMode==="fast"
+                ?"FAST · DRAFT · QUICKER · GLB + STL"
+                :"STANDARD · HIGHER FIDELITY · GLB + STL"}
+            </strong>
+          </div>
+        </>}
 
         <button
           className="export"
