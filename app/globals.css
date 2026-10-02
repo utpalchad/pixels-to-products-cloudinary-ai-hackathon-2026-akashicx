@@ -943,3 +943,136 @@ body{
     padding:0 18px
   }
 }
+
+
+/* =========================================================
+   PERFORMANCE + HERO COLOR PASS
+   ========================================================= */
+
+/* Kill the expensive legacy continuous orb animation/mix mode. */
+.colorOrb{
+  animation:none!important;
+  mix-blend-mode:normal!important;
+  filter:blur(42px)!important;
+  opacity:.24!important;
+  transform:translateZ(0)
+}
+
+/* Avoid costly full-screen backdrop filtering while scrolling. */
+.nav{
+  backdrop-filter:blur(10px) saturate(1.12)!important;
+  -webkit-backdrop-filter:blur(10px) saturate(1.12)!important
+}
+.primary{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important
+}
+.heroScene:after{
+  filter:blur(24px)!important;
+  opacity:.76
+}
+.processAura{
+  filter:blur(52px)!important;
+  opacity:.14!important
+}
+.stage:after{
+  filter:blur(22px)!important
+}
+
+/* Give each headline word its own color identity without frame-by-frame repaints. */
+.heroEditorial .pixelWord,
+.heroEditorial .becomeWord,
+.heroEditorial .objectWord{
+  color:transparent;
+  -webkit-background-clip:text;
+  background-clip:text;
+  animation:none!important;
+  filter:none!important;
+  text-shadow:none!important
+}
+.heroEditorial .pixelWord{
+  background-image:linear-gradient(
+    100deg,
+    #57e6ff 0%,
+    #7c3cff 38%,
+    #ff4fd8 74%,
+    #ff8a3d 100%
+  )
+}
+.heroEditorial .becomeWord{
+  background-image:linear-gradient(
+    100deg,
+    #ffd400 0%,
+    #ff8a3d 26%,
+    #ff2d2d 55%,
+    #ff4fd8 82%,
+    #7c3cff 100%
+  )
+}
+.heroEditorial .objectWord{
+  background-image:linear-gradient(
+    100deg,
+    #7c3cff 0%,
+    #57e6ff 35%,
+    #ffd400 68%,
+    #ff4fd8 100%
+  )
+}
+
+/* Keep only GPU-friendly transforms on the interactive hero layer. */
+.heroScene{
+  will-change:transform;
+  contain:layout paint
+}
+.heroScene canvas{
+  transform:translateZ(0)
+}
+.heroEditorial{
+  will-change:transform
+}
+
+/* Reduce work below the fold until it gets close to the viewport. */
+.process,
+.studioWrap{
+  contain:layout paint style
+}
+
+/* Ticker stays, but moves more slowly to reduce churn. */
+.heroTicker span{
+  animation-duration:28s!important
+}
+
+/* Tablet/mobile: cut more visual cost where scrolling jank is most noticeable. */
+@media(max-width:1000px){
+  .colorOrb{
+    filter:blur(30px)!important;
+    opacity:.16!important
+  }
+  .heroScene:after{
+    filter:blur(18px)!important
+  }
+  .processAura{
+    display:none!important
+  }
+}
+
+@media(max-width:640px){
+  .nav{
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+    background:rgba(11,10,22,.94)!important
+  }
+  .heroTicker span{
+    animation:none!important
+  }
+  .colorOrb{
+    display:none!important
+  }
+}
+
+/* Respect OS motion preferences completely. */
+@media(prefers-reduced-motion:reduce){
+  .heroTicker span{
+    animation:none!important
+  }
+}
