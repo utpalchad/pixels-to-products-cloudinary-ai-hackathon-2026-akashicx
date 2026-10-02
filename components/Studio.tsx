@@ -310,11 +310,41 @@ export default function Studio(){
   }
 
   async function pollFull3D(jobId:string){
-    for(let attempt=0;attempt<36;attempt++){
-      await wait(5000);
+    const startedAt=Date.now();
+    let attempt=0;
 
-      const response=await fetch(`${API_BASE}/api/v1/jobs/${jobId}`);
-      const job=await response.json();
+    // Multi-view reconstruction can legitimately take several minutes on
+    // shared hosted compute. Do not abandon a healthy provider job simply
+    // because it crosses an arbitrary browser-side timeout.
+    for(;;){
+      const elapsedBeforeWait=Date.now()-startedAt;
+      const pollDelay=
+        elapsedBeforeWait<3*60*1000
+          ?5000
+          :elapsedBeforeWait<10*60*1000
+            ?10000
+            :15000;
+
+      await wait(pollDelay);
+
+      let response:Response;
+      let job:any;
+
+      try{
+        response=await fetch(`${API_BASE}/api/v1/jobs/${jobId}`,{
+          cache:"no-store"
+        });
+        job=await response.json();
+      }catch{
+        attempt+=1;
+        const elapsedSeconds=Math.floor((Date.now()-startedAt)/1000);
+        const minutes=Math.floor(elapsedSeconds/60);
+        const seconds=String(elapsedSeconds%60).padStart(2,"0");
+        setMessage(
+          `${accurateMode?"MULTI-VIEW":"FULL 3D"} · CONNECTION RETRY · ${minutes}:${seconds}`
+        );
+        continue;
+      }
 
       if(!response.ok){
         throw new Error(job?.detail||"Could not check 3D generation status.");
@@ -329,11 +359,18 @@ export default function Studio(){
         throw new Error(job.error||"Full 3D generation failed.");
       }
 
-      const progress=Number(job.progress||Math.min((attempt+1)*10,90));
-      setMessage(`FULL 3D GENERATING · ${progress}%`);
-    }
+      const elapsedSeconds=Math.floor((Date.now()-startedAt)/1000);
+      const minutes=Math.floor(elapsedSeconds/60);
+      const seconds=String(elapsedSeconds%60).padStart(2,"0");
 
-    throw new Error("Full 3D generation timed out. Try again.");
+      setMessage(
+        accurateMode
+          ?`MULTI-VIEW 3D · PROCESSING · ${minutes}:${seconds}`
+          :`FULL 3D · PROCESSING · ${minutes}:${seconds}`
+      );
+
+      attempt+=1;
+    }
   }
 
   async function generateFull3D(){
@@ -377,7 +414,7 @@ export default function Studio(){
       return;
     }
 
-    setMessage("FULL 3D QUEUED");
+    setMessage(accurateMode?"MULTI-VIEW 3D QUEUED · THIS CAN TAKE SEVERAL MINUTES":"FULL 3D QUEUED");
     await pollFull3D(String(job.id));
   }
 
