@@ -6,7 +6,7 @@ import {CheckCircle2,Cloud,Download,Loader2,SlidersHorizontal,Sparkles,Upload} f
 
 const StudioScene=dynamic(()=>import("./scenes/StudioScene"),{ssr:false});
 
-type OutputChoice="stl"|"glb"|"litho";
+type ModelMode="relief"|"lithophane";\ntype OutputFormat="stl"|"glb";
 type PipelineState="ready"|"analyzing"|"converting"|"done"|"error";
 
 const API_BASE=(process.env.NEXT_PUBLIC_API_URL||"http://localhost:8000").replace(/\/$/,"");
@@ -22,7 +22,7 @@ export default function Studio(){
   const [cloudinaryUrl,setCloudinaryUrl]=useState("");
   const [cloudinaryPublicId,setCloudinaryPublicId]=useState("");
   const [description,setDescription]=useState("");
-  const [choice,setChoice]=useState<OutputChoice>("stl");
+  const [modelMode,setModelMode]=useState<ModelMode>("relief");\n  const [outputFormat,setOutputFormat]=useState<OutputFormat>("stl");
   const [pipeline,setPipeline]=useState<PipelineState>("ready");
   const [message,setMessage]=useState("READY");
   const [downloadUrl,setDownloadUrl]=useState<string|null>(null);
@@ -153,7 +153,7 @@ export default function Studio(){
       body.append("output_format",outputFormat);
       body.append("width_mm","100");
       body.append("depth_mm",String(depthMm));
-      body.append("base_thickness_mm",choice==="litho"?"0.8":"1.5");
+      body.append("base_thickness_mm",modelMode==="lithophane"?"0.8":"1.5");
       body.append("max_thickness_mm","4");
       body.append("resolution",String(resolution));
       body.append("smoothing",String(smooth));
@@ -166,7 +166,7 @@ export default function Studio(){
       const fileUrl=String(data.file_url||"");
       setDownloadUrl(fileUrl||null);
       setPipeline("done");
-      setMessage(data.watertight?"WATERTIGHT · READY":"MODEL READY");
+      const resultMode=String(data.mode||modelMode).toUpperCase();\n      const resultFormat=String(data.format||outputFormat).toUpperCase();\n      setMessage(`${resultMode} → ${resultFormat} READY`);
 
       if(fileUrl){
         const anchor=document.createElement("a");
@@ -268,10 +268,16 @@ export default function Studio(){
           <strong>100 mm · DEPTH {depthMm} mm · RES {resolution}</strong>
         </div>
 
+        <label className="fieldLabel">MODEL TYPE</label>
         <div className="formats">
-          <button className={choice==="stl"?"active":""} onClick={()=>setChoice("stl")}>STL</button>
-          <button className={choice==="glb"?"active":""} onClick={()=>setChoice("glb")}>GLB</button>
-          <button className={choice==="litho"?"active":""} onClick={()=>setChoice("litho")}>LITHO</button>
+          <button className={modelMode==="relief"?"active":""} onClick={()=>setModelMode("relief")}>RELIEF</button>
+          <button className={modelMode==="lithophane"?"active":""} onClick={()=>setModelMode("lithophane")}>LITHOPHANE</button>
+        </div>
+
+        <label className="fieldLabel">EXPORT FORMAT</label>
+        <div className="formats">
+          <button className={outputFormat==="stl"?"active":""} onClick={()=>setOutputFormat("stl")}>STL</button>
+          <button className={outputFormat==="glb"?"active":""} onClick={()=>setOutputFormat("glb")}>GLB</button>
         </div>
 
         <button className="export" onClick={exportModel} disabled={busy}>
