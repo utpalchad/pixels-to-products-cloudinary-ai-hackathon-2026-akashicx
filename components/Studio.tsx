@@ -316,7 +316,7 @@ export default function Studio(){
 
   async function generateFull3D(){
     setPipeline("converting");
-    setMessage("GEMINI → FULL 3D");
+    setMessage("REFERENCE PHOTOS → FULL 3D");
     clearResult();
 
     const body=new FormData();
@@ -335,8 +335,8 @@ export default function Studio(){
 
     body.append("vision_provider","auto");
     body.append("description",description);
-    body.append("tier","draft");
-    body.append("analyze_image","true");
+    body.append("tier","standard");
+    body.append("analyze_image","false");
 
     const response=await fetch(`${API_BASE}/api/v1/ai3d/generate`,{
       method:"POST",
@@ -425,7 +425,7 @@ export default function Studio(){
     <div className="studioTitle">
       <span>PIXEL FORGE / STUDIO</span>
       <span className="ready">
-        {busy?"◌":"●"} CLOUDINARY + GEMINI + 3D
+        {busy?"◌":"●"} CLOUDINARY + DIRECT IMAGE 3D
       </span>
     </div>
 
@@ -643,7 +643,7 @@ export default function Studio(){
           <span>MODEL ENGINE</span>
           <strong>
             {modelMode==="full3d"
-              ?"GEMINI → 360° TEXTURED AI MODEL"
+              ?"DIRECT PHOTO → 360° TEXTURED MODEL"
               :modelMode==="relief"
                 ?"2.5D HEIGHT-MAP RELIEF"
                 :"THICKNESS-BASED LITHOPHANE"}
@@ -706,7 +706,7 @@ export default function Studio(){
 
         {full3D&&<div className="dimension">
           <span>FULL 3D MODE</span>
-          <strong>DRAFT · 360° · TEXTURED · GLB ONLY</strong>
+          <strong>STANDARD · DIRECT PHOTO · MULTI-VIEW · GLB</strong>
         </div>}
 
         <button
