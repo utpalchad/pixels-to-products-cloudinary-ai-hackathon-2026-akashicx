@@ -17,6 +17,7 @@ MIME_EXTENSIONS = {
     "image/webp": ".webp",
 }
 CLOUDINARY_PENDING_CODES = {420, 423}
+CLOUDINARY_MAX_ATTEMPTS = 15
 
 
 def _validate_image_bytes(data: bytes, mime_type: str, max_upload_mb: int) -> tuple[bytes, str]:
@@ -75,11 +76,11 @@ async def fetch_cloudinary_image(url: str, max_upload_mb: int) -> tuple[bytes, s
         follow_redirects=False,
         headers={"User-Agent": "Pixel-Forge/1.0"},
     ) as client:
-        for attempt in range(8):
+        for attempt in range(CLOUDINARY_MAX_ATTEMPTS):
             response = await client.get(url)
             if response.status_code not in CLOUDINARY_PENDING_CODES:
                 break
-            await asyncio.sleep(min(1.5 + attempt * 0.5, 4.0))
+            await asyncio.sleep(min(1.5 + attempt * 0.5, 5.0))
 
     if response is None or response.status_code != 200:
         status = response.status_code if response is not None else "unknown"
