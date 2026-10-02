@@ -39,6 +39,7 @@ export default function Studio(){
   const [accurateMode,setAccurateMode]=useState(false);
   const [cloudinaryViews,setCloudinaryViews]=useState<CloudinaryView[]>([]);
   const [sourceFile,setSourceFile]=useState<File|null>(null);
+  const [localFiles,setLocalFiles]=useState<File[]>([]);
   const [cloudinaryUrl,setCloudinaryUrl]=useState("");
   const [cloudinaryPublicId,setCloudinaryPublicId]=useState("");
   const [cloudinaryWidth,setCloudinaryWidth]=useState(0);
@@ -202,7 +203,17 @@ export default function Studio(){
       (error:any,result:any)=>{
         if(error){
           setPipeline("error");
-          setMessage("CLOUDINARY UPLOAD ERROR");
+          const detail=String(
+            error?.statusText||
+            error?.message||
+            error?.status||
+            ""
+          ).toUpperCase();
+          setMessage(
+            detail.includes("PRESET")
+              ?"CLOUDINARY PRESET NOT FOUND · USE LOCAL MULTI-UPLOAD"
+              :"CLOUDINARY UPLOAD ERROR · LOCAL MULTI-UPLOAD AVAILABLE"
+          );
           return;
         }
 
@@ -235,6 +246,7 @@ export default function Studio(){
           }
 
           setSourceFile(null);
+          setLocalFiles([]);
           setPipeline("done");
         }
       }
@@ -332,6 +344,8 @@ export default function Studio(){
 
     if(preparedViews.length){
       body.append("cloudinary_urls",preparedViews.join(","));
+    }else if(accurateMode&&localFiles.length){
+      localFiles.slice(0,6).forEach(file=>body.append("files",file));
     }else{
       const file=await getWorkingFile();
       if(!file) throw new Error("Add an image first.");
@@ -423,7 +437,7 @@ export default function Studio(){
   }
 
   const busy=pipeline==="analyzing"||pipeline==="converting";
-  const hasSource=Boolean(sourceFile||cloudinaryUrl||cloudinaryViews.length);
+  const hasSource=Boolean(sourceFile||localFiles.length||cloudinaryUrl||cloudinaryViews.length);
   const full3D=modelMode==="full3d";
 
   return <section className="studioWrap" id="studio">
@@ -452,6 +466,11 @@ export default function Studio(){
               setAccurateMode(next);
               if(!next){
                 setCloudinaryViews(current=>current.slice(0,1));
+                setLocalFiles(current=>{
+                  const first=current.slice(0,1);
+                  setSourceFile(first[0]||null);
+                  return first;
+                });
               }
               clearResult(next?"MULTI-VIEW MODE ON":"QUICK MODE ON");
             }}
@@ -564,11 +583,16 @@ export default function Studio(){
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
+            multiple={accurateMode}
             onChange={e=>{
-              const next=e.target.files?.[0]||null;
-              setSourceFile(next);
+              const selected=Array.from(e.target.files||[]);
+              const nextFiles=(accurateMode?selected.slice(0,6):selected.slice(0,1));
+              const first=nextFiles[0]||null;
 
-              if(next){
+              setLocalFiles(nextFiles);
+              setSourceFile(first);
+
+              if(first){
                 setCloudinaryUrl("");
                 setCloudinaryPublicId("");
                 setCloudinaryWidth(0);
@@ -576,16 +600,31 @@ export default function Studio(){
                 setCloudinaryViews([]);
               }
 
-              clearResult(next?"LOCAL IMAGE LOADED":"READY");
+              clearResult(
+                first
+                  ?accurateMode
+                    ?`${nextFiles.length}/6 LOCAL VIEWS LOADED`
+                    :"LOCAL IMAGE LOADED"
+                  :"READY"
+              );
               setPipeline("ready");
             }}
           />
           <span className="plus">{hasSource?"✓":"+"}</span>
           <strong>
-            {sourceFile?.name||
-              (cloudinaryUrl?"CLOUDINARY IMAGE":"DROP LOCAL IMAGE")}
+            {localFiles.length
+              ?accurateMode
+                ?`${localFiles.length} LOCAL VIEWS SELECTED`
+                :localFiles[0]?.name
+              :cloudinaryUrl
+                ?"CLOUDINARY IMAGE"
+                :(accurateMode?"SELECT UP TO 6 LOCAL PHOTOS":"DROP LOCAL IMAGE")}
           </strong>
-          <small>CLOUDINARY PREFERRED · LOCAL FALLBACK · MAX 8MB</small>
+          <small>
+            {accurateMode
+              ?"MULTI-SELECT ENABLED · UP TO 6 IMAGES · MAX 8MB EACH"
+              :"CLOUDINARY PREFERRED · LOCAL FALLBACK · MAX 8MB"}
+          </small>
         </label>
 
         <label className="fieldLabel">DESCRIBE YOUR FORM</label>
