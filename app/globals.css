@@ -166,3 +166,52 @@ button:disabled{cursor:not-allowed;opacity:.58}
   letter-spacing:.1em;
   background:rgba(255,212,0,.04)
 }
+
+
+/* Cloudinary AI preprocessing */
+.source{overflow-y:auto}
+.cloudinaryTools{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px;
+  margin:0 0 10px
+}
+.cloudinaryTools button{
+  min-height:34px;
+  padding:8px 5px;
+  border:1px solid #34362d;
+  background:#1c1e18;
+  color:#8e9184;
+  font-size:8px;
+  letter-spacing:.08em;
+  cursor:pointer
+}
+.cloudinaryTools button.active{
+  border-color:rgba(87,230,255,.55);
+  color:#fff;
+  background:linear-gradient(135deg,rgba(87,230,255,.22),rgba(124,60,255,.32))
+}
+.cloudinaryTools button:disabled{
+  opacity:.35
+}
+.cloudinaryPrepMeta{
+  margin:8px 0 10px;
+  padding:9px 10px;
+  border:1px solid rgba(87,230,255,.18);
+  background:rgba(87,230,255,.04);
+  color:#aeb7c7;
+  font-size:8px;
+  line-height:1.5;
+  letter-spacing:.06em
+}
+.cloudinaryProcessed{
+  display:block;
+  margin:0 0 10px;
+  padding:8px 10px;
+  border:1px solid rgba(87,230,255,.24);
+  color:var(--cyan);
+  font-size:8px;
+  text-align:center;
+  letter-spacing:.1em;
+  background:rgba(87,230,255,.04)
+}
