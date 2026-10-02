@@ -48,6 +48,7 @@ class ConvertResponse(BaseModel):
     width_mm: float
     height_mm: float
     file_url: str
+    download_url: str
 
 
 class ProviderStatus(BaseModel):
