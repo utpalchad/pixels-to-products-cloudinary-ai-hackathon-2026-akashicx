@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     public_base_url: str = "http://localhost:8000"
     cors_origins: str = "http://localhost:3000,https://forge-pixel-forge.onrender.com"
-    trusted_hosts: str = "localhost,127.0.0.1,pixel-forge-api.onrender.com"
+    trusted_hosts: str = "localhost,127.0.0.1,testserver,pixel-forge-api.onrender.com"
 
     max_upload_mb: int = 8
     max_image_pixels: int = 25_000_000
