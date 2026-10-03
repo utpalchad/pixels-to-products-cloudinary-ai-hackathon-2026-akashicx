@@ -23,5 +23,9 @@ def export_mesh(
     mesh.export(path, file_type=output_format)
 
     base = settings.public_base_url.rstrip("/")
-    public_url = f"{base}/files/{filename}" if base else f"/files/{filename}"
+    public_url = (
+        f"{base}/api/v1/download/{filename}"
+        if base
+        else f"/api/v1/download/{filename}"
+    )
     return path, public_url
