@@ -1,6 +1,7 @@
 import io
+import logging
+import re
 
-import httpx
 import trimesh
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
@@ -9,11 +10,21 @@ from app.config import get_settings
 from app.models.schemas import JobResponse
 from app.services.jobs import job_store
 from app.services.threews import ThreeWSService
+from app.utils.network import fetch_public_binary
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _validate_job_id(job_id: str) -> str:
+    if not JOB_ID_PATTERN.fullmatch(job_id):
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job_id
 
 
 async def _fetch_finished_glb(job_id: str) -> tuple[object, bytes]:
+    job_id = _validate_job_id(job_id)
     record = job_store.get(job_id)
     if not record:
         raise HTTPException(status_code=404, detail="Job not found.")
@@ -21,17 +32,23 @@ async def _fetch_finished_glb(job_id: str) -> tuple[object, bytes]:
     if record.status != "done" or not record.glb_url:
         raise HTTPException(status_code=409, detail="The full 3D model is not ready yet.")
 
+    settings = get_settings()
     try:
-        async with httpx.AsyncClient(timeout=180.0, follow_redirects=True) as client:
-            response = await client.get(record.glb_url)
-            response.raise_for_status()
-    except Exception as exc:
+        glb_bytes = await fetch_public_binary(
+            record.glb_url,
+            max_bytes=settings.max_model_bytes,
+            timeout_seconds=180.0,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Could not fetch generated GLB job_id=%s", job_id)
         raise HTTPException(
             status_code=502,
-            detail=f"Could not fetch the generated full 3D model: {exc}",
-        ) from exc
+            detail="Could not fetch the generated full 3D model.",
+        )
 
-    return record, response.content
+    return record, glb_bytes
 
 
 def _glb_to_stl(glb_bytes: bytes) -> bytes:
@@ -44,14 +61,13 @@ def _glb_to_stl(glb_bytes: bytes) -> bytes:
         )
 
         if isinstance(loaded, trimesh.Scene):
-            # Fallback for GLBs that still load as a scene despite force="mesh".
             loaded = loaded.dump(concatenate=True)
 
         if not isinstance(loaded, trimesh.Trimesh):
-            raise ValueError("Generated GLB does not contain convertible mesh geometry.")
+            raise ValueError("GLB does not contain mesh geometry.")
 
         if loaded.vertices.size == 0 or loaded.faces.size == 0:
-            raise ValueError("Generated GLB contains an empty mesh.")
+            raise ValueError("GLB contains an empty mesh.")
 
         loaded.process(validate=True)
         loaded.remove_unreferenced_vertices()
@@ -61,15 +77,19 @@ def _glb_to_stl(glb_bytes: bytes) -> bytes:
             exported = exported.encode("utf-8")
 
         return bytes(exported)
-    except Exception as exc:
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Full 3D STL conversion failed")
         raise HTTPException(
             status_code=500,
-            detail=f"Full 3D STL conversion failed: {exc}",
-        ) from exc
+            detail="Full 3D STL conversion failed.",
+        )
 
 
 @router.get("/{job_id}", response_model=JobResponse)
 async def get_job(job_id: str):
+    job_id = _validate_job_id(job_id)
     record = job_store.get(job_id)
     if not record:
         raise HTTPException(status_code=404, detail="Job not found.")
@@ -114,10 +134,15 @@ async def get_job(job_id: str):
                     progress=progress,
                     error=None,
                 ) or record
-        except Exception as exc:
+        except Exception:
+            logger.warning(
+                "Temporary provider polling failure job_id=%s",
+                job_id,
+                exc_info=True,
+            )
             record = job_store.update(
                 job_id,
-                error=f"Temporary provider polling error: {exc}",
+                error="Temporary provider polling error.",
             ) or record
 
     return job_store.response(record)
@@ -131,14 +156,14 @@ async def download_job_glb(job_id: str):
         content=glb_bytes,
         media_type="model/gltf-binary",
         headers={
-            "Content-Disposition": f'attachment; filename="pixel-forge-full-3d-{job_id}.glb"'
+            "Content-Disposition": f'attachment; filename="pixel-forge-full-3d-{job_id}.glb"',
+            "Cache-Control": "private, no-store, max-age=0",
         },
     )
 
 
 @router.get("/{job_id}/download-stl")
 async def download_job_stl(job_id: str):
-    """Convert the completed full 3D GLB mesh to a texture-free STL."""
     _, glb_bytes = await _fetch_finished_glb(job_id)
     stl_bytes = _glb_to_stl(glb_bytes)
 
@@ -146,6 +171,7 @@ async def download_job_stl(job_id: str):
         content=stl_bytes,
         media_type="model/stl",
         headers={
-            "Content-Disposition": f'attachment; filename="pixel-forge-full-3d-{job_id}.stl"'
+            "Content-Disposition": f'attachment; filename="pixel-forge-full-3d-{job_id}.stl"',
+            "Cache-Control": "private, no-store, max-age=0",
         },
     )
