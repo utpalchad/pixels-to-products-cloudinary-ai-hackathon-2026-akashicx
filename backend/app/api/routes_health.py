@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.config import get_settings
 from app.models.schemas import ProviderStatus, ProvidersResponse
@@ -14,6 +14,12 @@ async def health():
 @router.get("/providers", response_model=ProvidersResponse)
 async def providers():
     settings = get_settings()
+
+    # Provider configuration details are useful during development but are
+    # unnecessary reconnaissance data in production.
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Not found.")
+
     return ProvidersResponse(
         vision=[
             ProviderStatus(
@@ -31,10 +37,7 @@ async def providers():
             ProviderStatus(
                 name="cloudinary",
                 configured=True,
-                note=(
-                    "Pixel Forge accepts Cloudinary delivery URLs from the browser Upload Widget. "
-                    "No Cloudinary API secret is stored on the backend."
-                ),
+                note="Browser-side Cloudinary delivery URLs are supported.",
             ),
             ProviderStatus(
                 name="three.ws",
