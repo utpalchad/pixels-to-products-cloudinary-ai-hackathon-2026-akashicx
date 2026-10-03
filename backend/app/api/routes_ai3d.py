@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app.config import get_settings
@@ -9,15 +11,29 @@ from app.utils.files import (
     read_validated_image,
     save_public_source_image,
 )
+from app.utils.validation import clean_user_text
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai3d", tags=["ai-3d"])
 
 
 def _parse_cloudinary_urls(raw: str) -> list[str]:
+    if len(raw) > 25_000:
+        raise HTTPException(status_code=422, detail="Cloudinary URL list is too long.")
+
     if not raw.strip():
         return []
+
     normalized = raw.replace("\n", ",")
-    return [part.strip() for part in normalized.split(",") if part.strip()]
+    urls = [part.strip() for part in normalized.split(",") if part.strip()]
+
+    if len(urls) > 6:
+        raise HTTPException(
+            status_code=422,
+            detail="A maximum of 6 image views is supported.",
+        )
+
+    return urls
 
 
 @router.post("/generate", response_model=JobResponse)
@@ -29,16 +45,15 @@ async def generate_ai_3d(
     tier: str = Form("standard"),
     analyze_image: bool = Form(False),
 ):
-    """Reconstruct a textured GLB directly from 1-6 reference photos.
+    """Reconstruct a textured GLB directly from 1-6 validated reference photos."""
 
-    Cloudinary URLs are sent directly to three.ws image-to-3D. Local uploads
-    are temporarily exposed through Pixel Forge's public /files route so the
-    reconstruction provider can fetch them. Gemini is intentionally not used
-    as an intermediate representation for geometry.
-    """
     settings = get_settings()
     uploads = files or []
     cloudinary_refs = _parse_cloudinary_urls(cloudinary_urls)
+
+    # Accepted for backwards compatibility with the current frontend. They do
+    # not influence the direct geometry pipeline.
+    _ = vision_provider, analyze_image
 
     if not uploads and not cloudinary_refs:
         raise HTTPException(
@@ -56,19 +71,31 @@ async def generate_ai_3d(
     if tier not in {"draft", "standard"}:
         raise HTTPException(
             status_code=422,
-            detail="Use draft or standard for Pixel Forge direct photo reconstruction.",
+            detail="Use draft or standard for direct photo reconstruction.",
         )
+
+    safe_description = clean_user_text(
+        description,
+        field_name="description",
+        max_length=1000,
+    )
 
     source_urls: list[str] = []
 
-    # Validate every Cloudinary transform before handing it to the 3D provider.
     for url in cloudinary_refs:
-        await fetch_cloudinary_image(url, settings.max_upload_mb)
+        await fetch_cloudinary_image(
+            url,
+            settings.max_upload_mb,
+            settings.max_image_pixels,
+        )
         source_urls.append(url)
 
-    # Local fallback: validate and serve the upload from our public backend.
     for upload in uploads:
-        data, mime = await read_validated_image(upload, settings.max_upload_mb)
+        data, mime = await read_validated_image(
+            upload,
+            settings.max_upload_mb,
+            settings.max_image_pixels,
+        )
 
         if settings.public_base_url.startswith(("http://localhost", "http://127.0.0.1")):
             raise HTTPException(
@@ -81,7 +108,7 @@ async def generate_ai_3d(
 
         source_urls.append(save_public_source_image(data, mime, settings))
 
-    guidance = " ".join(description.split()).strip()[:1000]
+    guidance = " ".join(safe_description.split()).strip()[:1000]
 
     try:
         service = ThreeWSService(settings)
@@ -90,16 +117,18 @@ async def generate_ai_3d(
             prompt=guidance,
             tier=tier,
         )
-    except Exception as exc:
+    except Exception:
+        logger.exception("Direct image-to-3D submission failed")
         raise HTTPException(
             status_code=502,
-            detail=f"Direct image-to-3D generation failed: {exc}",
-        ) from exc
+            detail="Direct image-to-3D generation is temporarily unavailable.",
+        )
 
     if not submitted.glb_url and not submitted.job_id:
+        logger.error("3D provider returned an untrackable response")
         raise HTTPException(
             status_code=502,
-            detail="3D provider returned neither a model URL nor a pollable job id.",
+            detail="3D provider returned an invalid job response.",
         )
 
     remote_status = submitted.status.lower()
@@ -108,8 +137,6 @@ async def generate_ai_3d(
     elif remote_status in {"failed", "error"}:
         status = "failed"
     else:
-        # Some providers can briefly report a terminal-looking status before
-        # the model URL is published. Keep the job pollable until a GLB exists.
         status = "queued"
 
     prompt_record = (
@@ -138,7 +165,7 @@ async def generate_ai_3d(
     if status == "failed":
         job_store.update(
             record.id,
-            error="The direct image reconstruction provider reported a failure.",
+            error="The external 3D provider reported a failure.",
         )
 
     return job_store.response(record)
