@@ -30,6 +30,23 @@ const CLOUDINARY_CLOUD_NAME=process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME||"";
 const CLOUDINARY_UPLOAD_PRESET=process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET||"";
 
 const wait=(ms:number)=>new Promise(resolve=>window.setTimeout(resolve,ms));
+const MAX_LOCAL_BYTES=8*1024*1024;
+const ALLOWED_LOCAL_TYPES=new Set(["image/png","image/jpeg","image/webp"]);
+
+function validateLocalFiles(files:File[]):string|null{
+  for(const file of files){
+    if(!ALLOWED_LOCAL_TYPES.has(file.type)){
+      return "ONLY JPG, PNG, AND WEBP ARE ALLOWED";
+    }
+    if(file.size<=0){
+      return "EMPTY IMAGE FILE";
+    }
+    if(file.size>MAX_LOCAL_BYTES){
+      return "IMAGE EXCEEDS 8MB LIMIT";
+    }
+  }
+  return null;
+}
 
 export default function Studio(){
   const localInputRef=useRef<HTMLInputElement|null>(null);
@@ -183,6 +200,7 @@ export default function Studio(){
         folder:"pixel-forge/source-images",
         clientAllowedFormats:["png","jpg","jpeg","webp"],
         maxFileSize:8*1024*1024,
+        cloudinaryAnalytics:false,
         cropping:false,
         showAdvancedOptions:false,
         styles:{
@@ -636,6 +654,15 @@ export default function Studio(){
             onChange={e=>{
               const selected=Array.from(e.target.files||[]);
               const nextFiles=(accurateMode?selected.slice(0,6):selected.slice(0,1));
+              const validationError=validateLocalFiles(nextFiles);
+
+              if(validationError){
+                e.currentTarget.value="";
+                setPipeline("error");
+                setMessage(validationError);
+                return;
+              }
+
               const first=nextFiles[0]||null;
 
               setLocalFiles(nextFiles);
@@ -679,7 +706,8 @@ export default function Studio(){
         <label className="fieldLabel">DESCRIBE YOUR FORM</label>
         <textarea
           value={description}
-          onChange={e=>setDescription(e.target.value)}
+          maxLength={1000}
+          onChange={e=>setDescription(e.target.value.slice(0,1000))}
           placeholder="Describe the object, materials, colors, and shape..."
         />
 
