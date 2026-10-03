@@ -1,0 +1,42 @@
+name: Frontend Security CI
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "package.json"
+      - "next.config.mjs"
+      - ".npmrc"
+      - ".node-version"
+      - ".github/workflows/frontend-security-ci.yml"
+  push:
+    branches:
+      - "frontend/spatial-ui"
+    paths:
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "package.json"
+      - "next.config.mjs"
+      - ".npmrc"
+      - ".node-version"
+      - ".github/workflows/frontend-security-ci.yml"
+
+jobs:
+  build-and-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+      - name: Install dependencies
+        run: npm install
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Production build
+        run: npm run build
