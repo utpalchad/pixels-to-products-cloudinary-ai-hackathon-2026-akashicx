@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import numpy as np
 import trimesh
+
+logger = logging.getLogger(__name__)
 
 
 def heightmap_to_mesh(
@@ -83,6 +86,8 @@ def heightmap_to_mesh(
     try:
         mesh.fix_normals()
     except Exception:
-        pass
+        # Normal repair is best-effort; trimesh has already validated/processsed
+        # the mesh. Keep a diagnostic without exposing it to the API caller.
+        logger.warning("Mesh normal repair failed", exc_info=True)
 
     return mesh, width_mm, height_mm
