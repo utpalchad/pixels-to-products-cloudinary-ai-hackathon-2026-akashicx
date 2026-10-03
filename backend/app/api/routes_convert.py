@@ -8,9 +8,9 @@ from app.services.exporter import export_mesh
 from app.services.image_processor import image_bytes_to_heightmap
 from app.services.mesh_engine import heightmap_to_mesh
 from app.utils.files import read_validated_image
+from app.utils.validation import require_finite_number
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/convert", tags=["conversion"])
 
 
@@ -28,25 +28,48 @@ async def convert_local(
     invert: bool = Form(False),
 ):
     settings = get_settings()
-    image_bytes, _ = await read_validated_image(file, settings.max_upload_mb)
+    image_bytes, _ = await read_validated_image(
+        file,
+        settings.max_upload_mb,
+        settings.max_image_pixels,
+    )
+
+    width_mm = require_finite_number(width_mm, field_name="width_mm")
+    depth_mm = require_finite_number(depth_mm, field_name="depth_mm")
+    base_thickness_mm = require_finite_number(
+        base_thickness_mm,
+        field_name="base_thickness_mm",
+    )
+    max_thickness_mm = require_finite_number(
+        max_thickness_mm,
+        field_name="max_thickness_mm",
+    )
+    smoothing = require_finite_number(smoothing, field_name="smoothing")
 
     if not 10 <= width_mm <= 500:
         raise HTTPException(status_code=422, detail="width_mm must be between 10 and 500.")
     if not 16 <= resolution <= 256:
         raise HTTPException(status_code=422, detail="resolution must be between 16 and 256.")
+    if not 0 <= smoothing <= 100:
+        raise HTTPException(status_code=422, detail="smoothing must be between 0 and 100.")
     if not 0.1 <= base_thickness_mm <= 20:
         raise HTTPException(
             status_code=422,
             detail="base_thickness_mm must be between 0.1 and 20.",
         )
+    if not 0.1 <= max_thickness_mm <= 20:
+        raise HTTPException(
+            status_code=422,
+            detail="max_thickness_mm must be between 0.1 and 20.",
+        )
     if mode == ConversionMode.relief and not 0.1 <= depth_mm <= 50:
         raise HTTPException(status_code=422, detail="depth_mm must be between 0.1 and 50.")
     if mode == ConversionMode.lithophane and not (
-        base_thickness_mm < max_thickness_mm <= 20
+        base_thickness_mm < max_thickness_mm
     ):
         raise HTTPException(
             status_code=422,
-            detail="max_thickness_mm must be greater than base thickness and at most 20.",
+            detail="max_thickness_mm must be greater than base thickness.",
         )
 
     logger.info("Converting local mesh mode=%s format=%s", mode.value, output_format.value)
@@ -71,9 +94,9 @@ async def convert_local(
             output_format=output_format.value,
             settings=settings,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Mesh conversion failed")
-        raise HTTPException(status_code=500, detail=f"Mesh conversion failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail="Mesh conversion failed.")
 
     base = settings.public_base_url.rstrip("/")
     download_url = f"{base}/api/v1/download/{path.name}"
