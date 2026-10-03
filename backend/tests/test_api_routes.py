@@ -189,3 +189,76 @@ def test_glb_to_stl_conversion():
 
     assert isinstance(stl, bytes)
     assert len(stl) > 84
+
+
+def test_security_headers_are_present():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert "default-src 'none'" in response.headers["content-security-policy"]
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers.get("x-request-id")
+
+
+def test_cross_site_post_is_blocked():
+    response = client.post(
+        "/api/v1/analysis/image",
+        headers={
+            "Origin": "https://evil.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+        files={"file": ("reference.png", make_png(), "image/png")},
+        data={"provider": "local"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Cross-origin request blocked."
+
+
+def test_description_length_is_enforced():
+    response = client.post(
+        "/api/v1/analysis/image",
+        files={"file": ("reference.png", make_png(), "image/png")},
+        data={"provider": "local", "description": "x" * 1001},
+    )
+    assert response.status_code == 422
+
+
+def test_signed_source_url_allows_valid_signature_and_rejects_tampering(
+    tmp_path,
+    monkeypatch,
+):
+    from app.utils.files import save_public_source_image
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "private_source_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "public_base_url", "http://testserver")
+    monkeypatch.setattr(
+        settings,
+        "source_signing_secret",
+        "test-source-signing-secret-at-least-32-bytes",
+    )
+
+    signed_url = save_public_source_image(
+        make_png(),
+        "image/png",
+        settings,
+    )
+    path_and_query = signed_url.removeprefix("http://testserver")
+
+    valid = client.get(path_and_query)
+    assert valid.status_code == 200
+    assert valid.headers["content-type"].startswith("image/png")
+    assert valid.headers["cache-control"].startswith("private, no-store")
+
+    separator = "&sig="
+    prefix, signature = path_and_query.split(separator, 1)
+    replacement = ("0" if signature[0] != "0" else "1") + signature[1:]
+    tampered = client.get(f"{prefix}{separator}{replacement}")
+    assert tampered.status_code == 403
+
+
+def test_download_route_rejects_non_generated_filename():
+    response = client.get("/api/v1/download/../.env")
+    assert response.status_code in {404, 422}
