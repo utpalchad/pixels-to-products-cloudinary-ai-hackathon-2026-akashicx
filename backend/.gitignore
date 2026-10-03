@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 outputs/*
 !outputs/.gitkeep
+private_sources/*
+!private_sources/.gitkeep
